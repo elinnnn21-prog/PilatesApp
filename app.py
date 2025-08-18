@@ -1,4 +1,4 @@
-# app.py — Pilates Manager (SQLite + exercises.json + 개인/그룹 구분)
+# app.py — Pilates Manager (SQLite + exercises.json + 개인/그룹 + 수입🍒)
 import os, json, sqlite3
 from datetime import datetime, date, time, timedelta
 from pathlib import Path
@@ -9,6 +9,11 @@ st.set_page_config(page_title="Pilates Manager", page_icon="🏋️", layout="wi
 DATA_DIR = Path(".")
 DB_FILE = DATA_DIR / "pilates.db"
 EX_JSON = DATA_DIR / "exercises.json"
+
+# 🍒 PIN (Streamlit Cloud secrets에 CHERRY_PW가 있으면 그 값 사용)
+CHERRY_PIN = st.secrets.get("CHERRY_PW", "2974")
+
+SITES = ["플로우", "리유", "방문"]
 
 def norm_phone(s: str) -> str:
     return "".join(ch for ch in str(s) if ch.isdigit())
@@ -34,6 +39,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     stype TEXT DEFAULT '개인',  -- '개인' / '그룹'
     headcount INTEGER DEFAULT 1,
     group_names TEXT DEFAULT '',-- 그룹일 때 참석자 이름들(콤마구분)
+    site TEXT DEFAULT '리유',   -- 지점: 플로우/리유/방문
+    visit_net INTEGER DEFAULT 0,-- 방문 실수령(사용자 입력)
     sdate TEXT,                 -- YYYY-MM-DD
     stime TEXT,                 -- HH:MM
     equipment TEXT,
@@ -41,17 +48,27 @@ CREATE TABLE IF NOT EXISTS sessions (
     notes TEXT,                 -- 특이사항
     homework TEXT,              -- 숙제
     status TEXT DEFAULT '예약',  -- 예약/취소
+    pay_gross REAL DEFAULT 0,   -- 총액(규칙 기준)
+    pay_net REAL DEFAULT 0,     -- 실수령(공제 반영)
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(member_id) REFERENCES members(id)
 )
 """)
 conn.commit()
 
-# 기존 DB에 누락 컬럼이 있으면 추가
+# 누락 컬럼 자동 보강
 def ensure_session_columns():
     cur.execute("PRAGMA table_info(sessions)")
     cols = {r["name"] for r in cur.fetchall()}
     to_add = []
+    if "site" not in cols:
+        to_add.append("ALTER TABLE sessions ADD COLUMN site TEXT DEFAULT '리유'")
+    if "visit_net" not in cols:
+        to_add.append("ALTER TABLE sessions ADD COLUMN visit_net INTEGER DEFAULT 0")
+    if "pay_gross" not in cols:
+        to_add.append("ALTER TABLE sessions ADD COLUMN pay_gross REAL DEFAULT 0")
+    if "pay_net" not in cols:
+        to_add.append("ALTER TABLE sessions ADD COLUMN pay_net REAL DEFAULT 0")
     if "stype" not in cols:
         to_add.append("ALTER TABLE sessions ADD COLUMN stype TEXT DEFAULT '개인'")
     if "headcount" not in cols:
@@ -64,8 +81,33 @@ def ensure_session_columns():
         cur.execute(sql)
     if to_add:
         conn.commit()
-
 ensure_session_columns()
+
+# 지점 규칙에 따른 페이 계산
+def calc_pay(site: str, stype: str, headcount: int, visit_net: int) -> tuple[float, float]:
+    """
+    returns (gross, net)
+    플로우: 회당 35,000원, 3.3% 공제
+    리유: 개인 30,000 / 3명 40,000 / 2명(=듀엣) 35,000 / 1명 25,000
+    방문: 실수령 직접 입력 (gross=net=visit_net)
+    """
+    if site == "플로우":
+        gross = 35000.0
+        net = round(gross * 0.967)  # 3.3% 공제
+        return gross, float(net)
+    elif site == "리유":
+        if stype == "개인":
+            return 30000.0, 30000.0
+        # 그룹 규칙
+        if headcount == 3:
+            return 40000.0, 40000.0
+        if headcount == 2:  # 듀엣
+            return 35000.0, 35000.0
+        # 1명(소그룹/프라이빗)
+        return 25000.0, 25000.0
+    else:  # 방문
+        v = float(max(0, int(visit_net or 0)))
+        return v, v
 
 # -------------- exercises.json --------------
 if not EX_JSON.exists():
@@ -94,8 +136,11 @@ EX = load_exercises_dict()
 # -------------- 사이드바 --------------
 if "nav" not in st.session_state:
     st.session_state["nav"] = "📅 스케줄"
-nav = st.sidebar.radio("탭", ["📅 스케줄","📝 세션","🧑‍🤝‍🧑 멤버"],
-                       index=["📅 스케줄","📝 세션","🧑‍🤝‍🧑 멤버"].index(st.session_state["nav"]))
+nav = st.sidebar.radio(
+    "탭",
+    ["📅 스케줄","📝 세션","🧑‍🤝‍🧑 멤버","🍒 수입"],
+    index=["📅 스케줄","📝 세션","🧑‍🤝‍🧑 멤버","🍒 수입"].index(st.session_state["nav"])
+)
 st.session_state["nav"] = nav
 
 # ================= 멤버 =================
@@ -214,7 +259,15 @@ elif nav == "📝 세션":
         headcount = 1
         group_names = ""
 
+    # 지점 + 방문 실수령
+    sc1, sc2 = st.columns([1,1])
+    with sc1:
+        site = st.selectbox("지점", SITES, index=1)  # 기본 리유
+    with sc2:
+        visit_net = st.number_input("방문 실수령(원)", min_value=0, max_value=1_000_000, value=0, step=1000, disabled=(site != "방문"))
+
     # 기구 → 레벨/동작
+    EX = load_exercises_dict()
     equip = st.selectbox("기구 선택", list(EX.keys()))
     levels = EX[equip] if isinstance(EX[equip], dict) else {"All": EX[equip]}
     level_key = st.selectbox("레벨/그룹", list(levels.keys()))
@@ -254,14 +307,21 @@ elif nav == "📝 세션":
         else:
             member_name = "그룹"
 
+        # 페이 계산
+        gross, net = calc_pay(site, stype, int(headcount), int(visit_net or 0))
+
         cur.execute("""
             INSERT INTO sessions (member_id, member_name, stype, headcount, group_names,
-                                  sdate, stime, equipment, exercises_json, notes, homework, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '예약')
+                                  site, visit_net, sdate, stime, equipment,
+                                  exercises_json, notes, homework, status,
+                                  pay_gross, pay_net)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '예약', ?, ?)
         """, (
             member_id, member_name, stype, int(headcount), group_names.strip(),
+            site, int(visit_net or 0),
             sdate.isoformat(), f"{stime.hour:02d}:{stime.minute:02d}", equip,
-            json.dumps(full_moves, ensure_ascii=False), notes.strip(), homework.strip()
+            json.dumps(full_moves, ensure_ascii=False), notes.strip(), homework.strip(),
+            float(gross), float(net)
         ))
         conn.commit()
         st.success("세션이 저장되었습니다.")
@@ -269,7 +329,7 @@ elif nav == "📝 세션":
     st.divider()
     st.subheader("최근 세션")
     cur.execute("""
-        SELECT id, member_name, stype, headcount, group_names, sdate, stime, equipment, exercises_json, status
+        SELECT id, member_name, stype, headcount, group_names, site, sdate, stime, equipment, exercises_json, status
         FROM sessions
         ORDER BY sdate DESC, stime DESC, id DESC
         LIMIT 50
@@ -282,9 +342,11 @@ elif nav == "📝 세션":
             moves = ", ".join(json.loads(r["exercises_json"])) if r["exercises_json"] else "-"
             tag = "[개인]" if r["stype"] == "개인" else f"[그룹 {r['headcount']}명]"
             names = f" · ({r['group_names']})" if r["stype"] == "그룹" and r["group_names"] else ""
-            status_txt = "❌ 취소" if r["status"] == "취소" else "✅ 예약"
-            st.markdown(f"**{r['sdate']} {r['stime']} · {tag} {r['member_name']}{names}**  — *{r['equipment']}*")
-            st.caption(f"동작: {moves} · {status_txt}")
+            title = f"**{r['sdate']} {r['stime']} · {tag} {r['member_name']}**{names} · *{r['equipment']}* · {r['site']}"
+            if r["status"] == "취소":
+                title = f"<s>{title}</s>"
+            st.markdown(title, unsafe_allow_html=True)
+            st.caption(f"동작: {moves}")  # 💡 금액은 여기서 노출하지 않음
 
 # ================= 스케줄 =================
 elif nav == "📅 스케줄":
@@ -305,7 +367,7 @@ elif nav == "📅 스케줄":
         start, end = first, next_month
 
     cur.execute("""
-        SELECT id, member_name, stype, headcount, group_names, sdate, stime, equipment, exercises_json, status
+        SELECT id, member_name, stype, headcount, group_names, site, sdate, stime, equipment, exercises_json, status
         FROM sessions
         WHERE sdate >= ? AND sdate < ?
         ORDER BY sdate, stime, id
@@ -319,7 +381,7 @@ elif nav == "📅 스케줄":
             moves = ", ".join(json.loads(r["exercises_json"])) if r["exercises_json"] else "-"
             tag = "[개인]" if r["stype"] == "개인" else f"[그룹 {r['headcount']}명]"
             names = f" · ({r['group_names']})" if r["stype"] == "그룹" and r["group_names"] else ""
-            title = f"{r['sdate']} {r['stime']} · {tag} **{r['member_name']}**{names} · *{r['equipment']}*"
+            title = f"{r['sdate']} {r['stime']} · {tag} **{r['member_name']}**{names} · *{r['equipment']}* · {r['site']}"
             if r["status"] == "취소":
                 title = f"<s>{title}</s>"
             st.markdown(title, unsafe_allow_html=True)
@@ -341,3 +403,79 @@ elif nav == "📅 스케줄":
                     cur.execute("DELETE FROM sessions WHERE id=?", (r["id"],))
                     conn.commit()
                     st.experimental_rerun()
+
+# ================= 🍒 수입(잠금) =================
+elif nav == "🍒 수입":
+    st.title("🍒 수입")
+    if "cherry_ok" not in st.session_state or not st.session_state["cherry_ok"]:
+        pin = st.text_input("PIN 입력", type="password", placeholder="****")
+        if st.button("열기"):
+            if pin == CHERRY_PIN:
+                st.session_state["cherry_ok"] = True
+                st.experimental_rerun()
+            else:
+                st.error("PIN이 올바르지 않습니다.")
+    else:
+        # 월/연 합계
+        st.subheader("합계")
+        cur.execute("""
+            SELECT substr(sdate,1,7) AS ym, SUM(pay_net) AS net_sum
+            FROM sessions
+            WHERE status != '취소'
+            GROUP BY ym
+            ORDER BY ym DESC
+        """)
+        month_rows = cur.fetchall()
+
+        cur.execute("""
+            SELECT substr(sdate,1,4) AS y, SUM(pay_net) AS net_sum
+            FROM sessions
+            WHERE status != '취소'
+            GROUP BY y
+            ORDER BY y DESC
+        """)
+        year_rows = cur.fetchall()
+
+        import pandas as pd
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("📆 월별 실수령 합계")
+            if month_rows:
+                st.dataframe(pd.DataFrame([{"월": r["ym"], "실수령 합계": int(r["net_sum"] or 0)} for r in month_rows]),
+                             use_container_width=True, hide_index=True)
+            else:
+                st.info("데이터 없음")
+        with col2:
+            st.write("🗓 연도별 실수령 합계")
+            if year_rows:
+                st.dataframe(pd.DataFrame([{"연도": r["y"], "실수령 합계": int(r["net_sum"] or 0)} for r in year_rows]),
+                             use_container_width=True, hide_index=True)
+            else:
+                st.info("데이터 없음")
+
+        st.divider()
+        st.subheader("상세(개별 세션)")
+        cur.execute("""
+            SELECT sdate, stime, site, stype, headcount, member_name, group_names, pay_gross, pay_net, status
+            FROM sessions
+            ORDER BY sdate DESC, stime DESC, id DESC
+            LIMIT 200
+        """)
+        rows = cur.fetchall()
+        if not rows:
+            st.info("상세 데이터가 없습니다.")
+        else:
+            data = []
+            for r in rows:
+                tag = "개인" if r["stype"] == "개인" else f"그룹 {r['headcount']}명"
+                who = r["member_name"] if r["stype"] == "개인" else f"{r['member_name']} ({r['group_names']})"
+                data.append({
+                    "날짜": f"{r['sdate']} {r['stime']}",
+                    "지점": r["site"],
+                    "구분": tag,
+                    "이름": who,
+                    "총액": int(r["pay_gross"] or 0),
+                    "실수령": int(r["pay_net"] or 0),
+                    "상태": r["status"]
+                })
+            st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
