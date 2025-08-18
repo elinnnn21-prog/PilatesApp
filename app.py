@@ -415,7 +415,7 @@ elif nav == "📅 스케줄":
                 site_chip = tag(r["지점"], SITE_COLOR.get(r["지점"], "#eee"))
                 title = f'{r["날짜"]} · {site_chip} · {name_html}'
                 body = f'{r["구분"]} · {r["레벨"]} · {r["기구"]}'
-                if r["동작(리스트)"] or r["추가동작"]]:
+                if r["동작(리스트)"] or r["추가동작"]:
                     body += " · 동작: " + ", ".join([r["동작(리스트)"], r["추가동작"]]).strip(" ,")
                 if bool(r["취소"]):
                     title = f'<s>{title}</s>'
@@ -461,3 +461,4 @@ elif nav == "🍒 수입":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
