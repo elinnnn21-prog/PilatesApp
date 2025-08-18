@@ -7,6 +7,9 @@ from collections import Counter
 import pandas as pd
 import streamlit as st
 
+if "nav" not in st.session_state:
+    st.session_state["nav"] = "📋"   # 기본 화면을 📋으로
+
 st.set_page_config(page_title="Pilates Manager", page_icon="🏋️", layout="wide")
 
 DATA_DIR = Path(".")
@@ -693,4 +696,5 @@ elif nav == "🍒":
                     "상태": r["status"]
                 })
             st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+
 
