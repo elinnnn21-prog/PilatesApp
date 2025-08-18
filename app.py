@@ -166,7 +166,8 @@ def ok(msg): st.success(msg)
 if "nav" not in st.session_state:
     st.session_state["nav"] = "📅"
 
-nav = st.sidebar.radio("탭", ["📅","📝","🧑‍🤝‍🧑","🍒"], index=["📅","📝","🧑‍🤝‍🧑","🍒"].index(st.session_state["nav"]))
+nav_options = ["📅","📝","🧑‍🤝‍🧑","🍒"]
+nav = st.sidebar.radio("📅", nav_options, index=nav_options.index(st.session_state["nav"]))
 st.session_state["nav"] = nav
 
 # ======================= 🧑‍🤝‍🧑 멤버 =======================
@@ -692,3 +693,4 @@ elif nav == "🍒":
                     "상태": r["status"]
                 })
             st.dataframe(pd.DataFrame(data), use_container_width=True, hide_index=True)
+
