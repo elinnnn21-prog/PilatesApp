@@ -7,6 +7,19 @@ from typing import List, Dict, Tuple
 import pandas as pd
 import streamlit as st
 
+# ----- 네비게이션: 사이드바 세로 + 기본은 스케줄 -----
+if "nav" not in st.session_state:
+    st.session_state["nav"] = "📅"   # 앱 첫 로딩 시 스케줄로
+
+nav_options = ["📅", "📝", "👥", "📋", "🍒"]  # 스케줄, 세션, 멤버, 리포트, 수입
+
+nav = st.sidebar.radio(
+    "탭",
+    options=nav_options,
+    index=nav_options.index(st.session_state["nav"]),
+    horizontal=False,                 # ← 세로
+)
+st.session_state["nav"] = nav
 # ──────────────────────────────────────────────────────────
 # 기본 설정
 # ──────────────────────────────────────────────────────────
@@ -491,6 +504,7 @@ elif nav == "🍒":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
 
 
 
