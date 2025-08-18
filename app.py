@@ -25,7 +25,6 @@ SITE_COLOR = {"플로우": "#d9f0ff", "리유": "#eeeeee", "방문": "#e9fbe9"} 
 
 # 레벨/기구/동작 초기 DB (없으면 자동 생성/저장, 이후 사용자가 추가한 동작은 누적)
 EX_DB_DEFAULT: Dict[str, List[str]] = {
-    # (요약본) 필요시 화면에서 계속 추가하면 JSON에 누적 저장됩니다.
     "Mat(Basic)": [
         "Roll down", "The hundred", "Roll up", "Single leg circles",
         "Rolling like a ball", "Single leg stretch", "Double leg stretch",
@@ -76,12 +75,10 @@ def ensure_files():
         ]).to_csv(SESSIONS_CSV, index=False, encoding="utf-8-sig")
     if not EXER_DB_JSON.exists():
         pd.Series(EX_DB_DEFAULT).to_json(EXER_DB_JSON, force_ascii=False)
-
 ensure_files()
 
 def load_members() -> pd.DataFrame:
-    df = pd.read_csv(MEMBERS_CSV, dtype=str, encoding="utf-8-sig").fillna("")
-    return df
+    return pd.read_csv(MEMBERS_CSV, dtype=str, encoding="utf-8-sig").fillna("")
 
 def save_members(df: pd.DataFrame):
     df.to_csv(MEMBERS_CSV, index=False, encoding="utf-8-sig")
@@ -106,7 +103,6 @@ def load_ex_db() -> Dict[str, List[str]]:
     try:
         ser = pd.read_json(EXER_DB_JSON, typ="series")
         d = {k: list(v) for k, v in ser.items()}
-        # 기본 키 보강
         for k, v in EX_DB_DEFAULT.items():
             d.setdefault(k, v)
         return d
@@ -126,7 +122,7 @@ def big_info(msg: str, kind="info"):
     else: st.info(msg)
 
 def tag(text, bg):
-    return f'<span style="background:{bg}; padding:2px 8px; border-radius:8px; font-size:12px;">{text}</span>'
+    return f"<span style='background:{bg}; padding:2px 8px; border-radius:8px; font-size:12px;'>{text}</span>"
 
 def calc_pay(site: str, session_type: str, headcount: int, visit_net: float|None) -> Tuple[float,float]:
     """
@@ -138,7 +134,7 @@ def calc_pay(site: str, session_type: str, headcount: int, visit_net: float|None
     gross = net = 0.0
     if site == "플로우":
         gross = 35000.0
-        net = round(gross * 0.967, 0)  # 3.3% 공제
+        net = round(gross * 0.967, 0)
     elif site == "리유":
         if session_type == "개인":
             gross = net = 30000.0
@@ -156,13 +152,13 @@ def calc_pay(site: str, session_type: str, headcount: int, visit_net: float|None
 # 네비게이션 (세로 사이드바 / 첫 페이지 = 스케줄)
 # =========================
 if "nav" not in st.session_state:
-    st.session_state["nav"] = "📅"
+    st.session_state["nav"] = "📅 스케줄"
 
-nav_options = ["📅","📝","👥","📋","🍒"]  # 스케줄, 세션, 멤버, 리포트, 수입
-nav = st.sidebar.radio(" ", options=nav_options, index=nav_options.index(st.session_state["nav"]), horizontal=False)
+nav_options = ["📅 스케줄","📝 세션","👥 멤버","📋 리포트","🍒"]  # 🍒만 이모지
+nav = st.sidebar.radio(" ", options=nav_options,
+                       index=nav_options.index(st.session_state["nav"]),
+                       horizontal=False, key="nav_radio")
 st.session_state["nav"] = nav
-
-# 부제 설명 제거용 작은 공백
 st.sidebar.markdown("&nbsp;", unsafe_allow_html=True)
 
 # 데이터 로드
@@ -173,51 +169,51 @@ exdb = load_ex_db()
 # =========================================================
 # 👥 멤버
 # =========================================================
-if nav == "👥":
+if nav.startswith("👥"):
     st.header("멤버 관리")
     with st.expander("➕ 등록/수정/재등록", expanded=True):
         left, right = st.columns([1,1])
 
         existing = ["(새 회원)"] + (members["이름"].tolist() if not members.empty else [])
-        sel = st.selectbox("회원 선택", existing)
+        sel = st.selectbox("회원 선택", existing, key="mem_select")
 
-        # 현재 선택 행
         sel_row = members[members["이름"]==sel].iloc[0] if (sel != "(새 회원)" and not members.empty and sel in members["이름"].values) else None
 
         with left:
-            name  = st.text_input("이름", "" if sel == "(새 회원)" else sel)
+            name  = st.text_input("이름", "" if sel == "(새 회원)" else sel, key="mem_name")
             phone = st.text_input(
                 "연락처",
                 "" if sel_row is None else sel_row.get("연락처",""),
-                placeholder="010-0000-0000"
+                placeholder="010-0000-0000",
+                key="mem_phone"
             )
             # 전화번호 중복 체크
             duplicated = False
             if phone.strip():
-                others = members[members["연락처"]==phone]
-                if not others.empty and (sel == "(새 회원)" or others.iloc[0]["이름"] != sel):
+                dup = members[(members["연락처"]==phone) & (members["이름"]!=name)]
+                if not dup.empty:
                     st.error("⚠️ 이미 등록된 연락처입니다. 확인해주세요.")
                     duplicated = True
 
             site_default = "플로우" if sel_row is None else (sel_row.get("지점") or "플로우")
-            site  = st.selectbox("기본 지점", SITES, index=SITES.index(site_default))
+            site  = st.selectbox("기본 지점", SITES, index=SITES.index(site_default), key="mem_site")
 
             visit_net_default = 0 if sel_row is None else int(float(sel_row.get("방문 실수령(원)") or 0))
-            visit_net = st.number_input("방문 실수령(원)", 0, 1_000_000, visit_net_default, 1000)
+            visit_net = st.number_input("방문 실수령(원)", 0, 1_000_000, visit_net_default, 1000, key="mem_visitnet")
 
         with right:
             reg_default = date.today() if sel_row is None else (
                 pd.to_datetime(sel_row.get("등록일"), errors="coerce").date() if sel_row.get("등록일") else date.today()
             )
-            reg_date = st.date_input("등록일", reg_default)
+            reg_date = st.date_input("등록일", reg_default, key="mem_regdate")
 
-            add_cnt = st.number_input("재등록 추가 횟수(+)", 0, 100, 0, 1)
-            note = st.text_input("메모(선택)", "" if sel_row is None else sel_row.get("메모",""))
+            add_cnt = st.number_input("재등록 추가 횟수(+)", 0, 100, 0, 1, key="mem_addcnt")
+            note = st.text_input("메모(선택)", "" if sel_row is None else sel_row.get("메모",""), key="mem_note")
 
         c1, c2, c3 = st.columns(3)
         with c1:
             disabled = duplicated or not name.strip()
-            if st.button("저장/수정", use_container_width=True, disabled=disabled):
+            if st.button("저장/수정", use_container_width=True, key="mem_save", disabled=disabled):
                 if sel == "(새 회원)":
                     new_id = str(len(members)+1)
                     row = pd.DataFrame([{
@@ -242,7 +238,7 @@ if nav == "👥":
                     st.success("수정 완료")
 
         with c2:
-            if st.button("재등록 반영(+남은횟수, 총등록)", use_container_width=True, disabled=(sel=="(새 회원)" or add_cnt<=0)):
+            if st.button("재등록 반영(+남은횟수, 총등록)", use_container_width=True, key="mem_reenroll", disabled=(sel=="(새 회원)" or add_cnt<=0)):
                 idx = members.index[members["이름"]==sel][0]
                 total = int(float(members.loc[idx,"총등록"] or 0)) + int(add_cnt)
                 remain = int(float(members.loc[idx,"남은횟수"] or 0)) + int(add_cnt)
@@ -254,8 +250,8 @@ if nav == "👥":
                 st.success(f"{sel} 재등록 +{add_cnt}회 반영")
 
         with c3:
-            del_name = st.selectbox("삭제 대상", members["이름"].tolist() if not members.empty else [])
-            if st.button("멤버 삭제", use_container_width=True, disabled=members.empty):
+            del_name = st.selectbox("삭제 대상", members["이름"].tolist() if not members.empty else [], key="mem_del_sel")
+            if st.button("멤버 삭제", use_container_width=True, key="mem_delete", disabled=members.empty):
                 members2 = members[members["이름"]!=del_name].reset_index(drop=True)
                 save_members(members2)
                 st.success(f"{del_name} 삭제 완료")
@@ -273,16 +269,17 @@ if nav == "👥":
         big_info("세션 데이터가 없습니다.")
     else:
         mnames = ["(선택)"] + sorted([x for x in sessions["이름"].dropna().unique() if x])
-        selm = st.selectbox("멤버 선택", mnames)
+        selm = st.selectbox("멤버 선택", mnames, key="stats_member")
         if selm != "(선택)":
-            # 이번달 필터
             now = date.today()
-            month_mask = (sessions["이름"]==selm) & (sessions["구분"]=="개인") & (sessions["날짜"].dt.year==now.year) & (sessions["날짜"].dt.month==now.month)
+            month_mask = (
+                (sessions["이름"]==selm) & (sessions["구분"]=="개인") &
+                (sessions["날짜"].dt.year==now.year) & (sessions["날짜"].dt.month==now.month)
+            )
             dfm = sessions.loc[month_mask].copy()
             if dfm.empty:
                 big_info("이번 달 기록이 없습니다.")
             else:
-                # 동작 분해(멀티셀 ; 로 저장)
                 acts = []
                 for s in dfm["동작(리스트)"].fillna(""):
                     items = [x.strip() for x in s.split(";") if x.strip()]
@@ -293,7 +290,7 @@ if nav == "👥":
                     st.write("**이번 달 Top5 동작**")
                     st.bar_chart(top.set_index("동작"))
 
-                    # 6개월 추이(Top5 항목 기준)
+                    # 6개월 추이(Top5 기준)
                     target_moves = top["동작"].tolist()
                     since = pd.Timestamp(now) - pd.DateOffset(months=5)
                     dfl = sessions[(sessions["이름"]==selm) & (sessions["구분"]=="개인") & (sessions["날짜"]>=since)].copy()
@@ -313,46 +310,45 @@ if nav == "👥":
 
 # =========================================================
 # 📝 세션 (개인/그룹)
-#  - 그룹: 인원·지점·기구·레벨·특이사항만
-#  - 개인: 동작 선택(기구 필터), 특이사항, 숙제
-#  - 방문 실수령은 멤버 기본설정 사용
 # =========================================================
-elif nav == "📝":
+elif nav.startswith("📝"):
     st.header("세션 기록")
+
     if members.empty:
         big_info("먼저 멤버를 등록하세요.")
+    # 상단 공통(지점은 각 블록에서 따로 띄워 중복 위젯 방지)
     cols = st.columns([1,1,1,1])
     with cols[0]:
-        day = st.date_input("날짜", value=date.today())
-        time_str = st.time_input("시간", value=datetime.now().time())
+        day = st.date_input("날짜", value=date.today(), key="sess_day")
+        time_str = st.time_input("시간", value=datetime.now().time(), key="sess_time")
     with cols[1]:
-        session_type = st.radio("구분", ["개인","그룹"], horizontal=True)
+        session_type = st.radio("구분", ["개인","그룹"], horizontal=True, key="sess_type")
     with cols[2]:
-        site = st.selectbox("지점", SITES)
+        minutes = st.number_input("수업 분", 10, 180, 50, 5, key="sess_minutes")
     with cols[3]:
-        minutes = st.number_input("수업 분", 10, 180, 50, 5)
+        pass  # 자리 맞춤
 
-    # 그룹 간소화
     if session_type == "그룹":
         g1, g2, g3, g4 = st.columns([1,1,1,1])
         with g1:
-            headcount = st.number_input("인원", 1, 10, 2, 1)
+            site_group = st.selectbox("지점", SITES, key="site_group")
         with g2:
-            level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"])
+            headcount = st.number_input("인원", 1, 10, 2, 1, key="grp_head")
         with g3:
-            equip = st.selectbox("기구", ["Reformer","Cadillac","Wunda chair","Spine corrector/Barrel","Mat","기타"])
+            level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"], key="grp_lvl")
         with g4:
-            special = st.text_input("특이사항(선택)", "")
-        memo = st.text_area("메모(선택)", height=70)
-        cancel = st.checkbox("취소")
-        reason = st.text_input("사유(선택)", "")
+            equip = st.selectbox("기구", ["Reformer","Cadillac","Wunda chair","Spine corrector/Barrel","Mat","기타"], key="grp_eq")
+        special = st.text_input("특이사항(선택)", "", key="grp_special")
+        memo = st.text_area("메모(선택)", height=70, key="grp_memo")
+        cancel = st.checkbox("취소", key="grp_cancel")
+        reason = st.text_input("사유(선택)", "", key="grp_reason")
 
-        if st.button("세션 저장", use_container_width=True):
+        if st.button("세션 저장", use_container_width=True, key="grp_save"):
             when = datetime.combine(day, time_str)
-            gross, net = calc_pay(site, "그룹", int(headcount), None)
+            gross, net = calc_pay(site_group, "그룹", int(headcount), None)
             row = pd.DataFrame([{
                 "id": str(len(sessions)+1),
-                "날짜": when, "지점": site, "구분":"그룹",
+                "날짜": when, "지점": site_group, "구분":"그룹",
                 "이름":"", "인원": int(headcount),
                 "레벨": level, "기구": equip,
                 "동작(리스트)": "", "추가동작": "",
@@ -367,18 +363,18 @@ elif nav == "📝":
     else:  # 개인
         p1, p2, p3, p4 = st.columns([1,1,1,1])
         with p1:
-            mname = st.selectbox("멤버", members["이름"].tolist() if not members.empty else [])
+            mname = st.selectbox("멤버", members["이름"].tolist() if not members.empty else [], key="per_member")
         with p2:
-            # 멤버 기본 지점으로 덮어쓰기
-            if mname:
-                try_site = members.loc[members["이름"]==mname, "지점"].iloc[0]
-                site = st.selectbox("지점", SITES, index=SITES.index(try_site) if try_site in SITES else 0)
+            # 멤버 기본 지점 default
+            if mname and (mname in members["이름"].values):
+                def_site = members.loc[members["이름"]==mname, "지점"].iloc[0] or "플로우"
             else:
-                site = st.selectbox("지점", SITES, index=SITES.index(site))
+                def_site = "플로우"
+            site_personal = st.selectbox("지점", SITES, index=SITES.index(def_site), key="site_personal")
         with p3:
-            level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"])
+            level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"], key="per_lvl")
         with p4:
-            equip = st.selectbox("기구", ["Reformer","Cadillac","Wunda chair","Spine corrector/Barrel","Mat","기타"])
+            equip = st.selectbox("기구", ["Reformer","Cadillac","Wunda chair","Spine corrector/Barrel","Mat","기타"], key="per_eq")
 
         # 기구 기반 동작 필터
         equip_key_map = {
@@ -386,23 +382,24 @@ elif nav == "📝":
             "Cadillac":"Cadillac",
             "Wunda chair":"Wunda chair",
             "Spine corrector/Barrel":"Spine corrector/Barrel",
-            "Mat":"Mat(Basic)"
+            "Mat":"Mat(Basic)",
+            "기타":"기타"
         }
         pool = []
         for k, moves in exdb.items():
             if k == equip_key_map.get(equip):
                 pool.extend([f"{k} · {m}" for m in moves])
-        chosen = st.multiselect("운동 동작(복수)", sorted(당구))
-        add_free = st.text_input("추가 동작(콤마 , 로 구분)", "")
+        chosen = st.multiselect("운동 동작(복수)", sorted(당구), key="per_moves")
+        add_free = st.text_input("추가 동작(콤마 , 로 구분)", "", key="per_addfree")
 
-        special = st.text_input("특이사항(선택)", "")
-        homework = st.text_input("숙제(선택)", "")
-        memo = st.text_area("메모(선택)", height=70)
+        special = st.text_input("특이사항(선택)", "", key="per_special")
+        homework = st.text_input("숙제(선택)", "", key="per_homework")
+        memo = st.text_area("메모(선택)", height=70, key="per_memo")
 
-        cancel = st.checkbox("취소")
-        reason = st.text_input("사유(선택)", "")
+        cancel = st.checkbox("취소", key="per_cancel")
+        reason = st.text_input("사유(선택)", "", key="per_reason")
 
-        if st.button("세션 저장", use_container_width=True, disabled=(not mname)):
+        if st.button("세션 저장", use_container_width=True, key="per_save", disabled=(not mname)):
             when = datetime.combine(day, time_str)
 
             # 자유입력 동작을 '기타'에 누적
@@ -417,17 +414,17 @@ elif nav == "📝":
 
             # 방문일 경우 멤버 기본 실수령 적용
             visit_net = None
-            if site == "방문":
+            if site_personal == "방문" and mname:
                 try:
                     visit_net = float(members.loc[members["이름"]==mname, "방문 실수령(원)"].iloc[0] or 0)
                 except Exception:
                     visit_net = 0.0
 
-            gross, net = calc_pay(site, "개인", 1, visit_net)
+            gross, net = calc_pay(site_personal, "개인", 1, visit_net)
 
             row = pd.DataFrame([{
                 "id": str(len(sessions)+1),
-                "날짜": when, "지점": site, "구분":"개인",
+                "날짜": when, "지점": site_personal, "구분":"개인",
                 "이름": mname, "인원": 1,
                 "레벨": level, "기구": equip,
                 "동작(리스트)": "; ".join(chosen), "추가동작": add_free,
@@ -459,13 +456,13 @@ elif nav == "📝":
 # =========================================================
 # 📅 스케줄 (일/주/월) + 지난 수업 상세 표시 + 취소 토글
 # =========================================================
-elif nav == "📅":
+elif nav.startswith("📅"):
     st.header("스케줄 (일/주/월)")
     if sessions.empty:
         big_info("세션 데이터가 없습니다.")
     else:
-        mode = st.segmented_control("보기", options=["일","주","월"], default="주")
-        base = st.date_input("기준 날짜", value=date.today())
+        mode = st.segmented_control("보기", options=["일","주","월"], default="주", key="cal_mode")
+        base = st.date_input("기준 날짜", value=date.today(), key="cal_base")
         base_dt = datetime.combine(base, datetime.min.time())
 
         if mode == "일":
@@ -485,20 +482,18 @@ elif nav == "📅":
             view = view.sort_values("날짜")
             st.caption("과거 세션은 **동작/특이사항/숙제**가 함께 보입니다. (취소 토글 가능)")
 
-            # 취소 업데이트용 폼
             with st.form("cancel_form"):
                 rows_html = []
                 cancel_updates: List[Tuple[int, bool]] = []
 
-                for idx, r in view.iterrows():
+                for _, r in view.iterrows():
                     dt_txt = pd.to_datetime(r["날짜"]).strftime("%m/%d %a %H:%M")
                     who = r["이름"] if r["이름"] else "(그룹)"
                     site_chip = tag(r["지점"], SITE_COLOR.get(r["지점"], "#eee"))
 
-                    # 지난 수업이면 상세 노출
                     details = []
                     if pd.to_datetime(r["날짜"]) < datetime.now():
-                        if r.get("동작(리스트)"): details.append(f'동작: {r.get("동작(리스트)")}')
+                        if r.get("동작(리스트)"): details.append(f'동작: {r.get("동작(리스트")}')
                         if r.get("추가동작"):     details.append(f'추가: {r.get("추가동작")}')
                         if r.get("특이사항"):     details.append(f'특이: {r.get("특이사항")}')
                         if r.get("숙제"):         details.append(f'숙제: {r.get("숙제")}')
@@ -510,16 +505,17 @@ elif nav == "📅":
                     if details:
                         body_html = "<div style='color:#bbb; margin-top:2px;'>" + " · ".join(details) + "</div>"
 
-                    # 취소 체크박스
-                    c = st.checkbox(f"취소 ⬅️  ({dt_txt} / {who})", value=bool(r["취소"]), key=f"cancel_{idx}")
-                    cancel_updates.append((idx, c))
+                    # 체크박스는 세션 id로 고유 키 부여
+                    cb_key = f"cancel_{r['id']}"
+                    c = st.checkbox(f"취소 ⬅️  ({dt_txt} / {who})", value=bool(r["취소"]), key=cb_key)
+                    cancel_updates.append((r.name, c))  # r.name = 원래 인덱스
 
                     rows_html.append(
                         f"<div style='padding:10px 0; border-bottom:1px solid #333'>{title_html}{body_html}</div>"
                     )
 
                 st.markdown("<div>" + "".join(rows_html) + "</div>", unsafe_allow_html=True)
-                if st.form_submit_button("변경 저장"):
+                if st.form_submit_button("변경 저장", use_container_width=True):
                     for idx, val in cancel_updates:
                         sessions.loc[idx,"취소"] = bool(val)
                     save_sessions(sessions)
@@ -528,7 +524,7 @@ elif nav == "📅":
 # =========================================================
 # 📋 리포트 (간단 보드)
 # =========================================================
-elif nav == "📋":
+elif nav.startswith("📋"):
     st.header("📋 리포트")
     if sessions.empty:
         big_info("세션 데이터가 없습니다.")
@@ -546,8 +542,8 @@ elif nav == "📋":
 elif nav == "🍒":
     st.header("🍒")
     if "cherry_ok" not in st.session_state or not st.session_state["cherry_ok"]:
-        pin = st.text_input("PIN 입력", type="password", placeholder="****")
-        if st.button("열기"):
+        pin = st.text_input("PIN 입력", type="password", placeholder="****", key="cherry_pin")
+        if st.button("열기", key="cherry_open"):
             if pin == CHERRY_PIN:
                 st.session_state["cherry_ok"] = True
                 st.experimental_rerun()
