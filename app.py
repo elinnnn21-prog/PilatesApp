@@ -438,7 +438,7 @@ elif nav == "📅":
         else:
             view["날짜표시"] = pd.to_datetime(view["날짜"]).dt.strftime("%m/%d %a %H:%M")
             for _, r in view.iterrows():
-                name_html = f'<span style="font-size:16px; font-weight:800;">{(r["이름"] if r["이름"] else "(그룹)")}'</span>'
+                name_html = f"<span style="font-size:16px; font-weight:800;">{(r["이름"] if r["이름"] else "(그룹)")}'</span>"
                 site_chip = tag(r["지점"], SITE_COLOR.get(r["지점"], "#eee"))
                 title = f'{r["날짜표시"]} · {site_chip} · {name_html}'
                 body = f'{r["구분"]} · {r["레벨"]} · {r["기구"]}'
@@ -491,4 +491,5 @@ elif nav == "🍒":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
 
