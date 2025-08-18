@@ -1,6 +1,117 @@
 {
-  "Mat(Basic)": ["Roll down","The hundred","Single leg circles"],
-  "Reformer": ["Footwork series","The hundred","Coordination"],
-  "Cadillac": ["Roll back","Leg spring series"],
+  "Mat": {
+    "Basic": [
+      "Roll down", "The hundred", "Roll up", "Single leg circles", 
+      "Rolling like a ball", "Single leg stretch", "Double leg stretch", "Spine stretch forward"
+    ],
+    "Intermediate": [
+      "The hundred", "Roll up", "Single leg circles", "Rolling like a ball",
+      "Single leg stretch", "Double leg stretch", "Double straight leg", "Criss cross",
+      "Spine stretch forward", "Open leg rocker", "Corkscrew", "Saw",
+      "Neck roll", "Single leg kicks", "Double leg kicks", "Neck pull",
+      "Side kick series (Front & Back, Up & Down, Small circles)", "Teaser", "Seal"
+    ],
+    "Advanced": [
+      "The hundred", "Roll up", "Roll over", "Single leg circles",
+      "Rolling like a ball", "Single leg stretch", "Double leg stretch", "Double straight leg",
+      "Criss cross", "Spine stretch forward", "Open leg rocker", "Corkscrew", "Saw",
+      "Neck roll", "Swan dive", "Single leg kicks", "Double leg kicks", "Neck pull",
+      "Scissors", "Bicycle", "Shoulder bridge", "Spine twist", "Jack knife",
+      "Side kick series (Front & Back, Up & Down, Small circles, Bicycle, Leg lifts, Leg beats, Circling inner thigh, Hot potato, Big scissors, Grand ronde de jambe)",
+      "Teaser (1,2,3)", "Hip circles", "Swimming", "Leg pull down", "Leg pull up", "Kneeling side kicks",
+      "Mermaid", "Boomerang", "Seal", "Push ups"
+    ]
+  },
+  "Reformer": {
+    "Basic": [
+      "Footwork series (Toes, Arches, Heels, Tendon stretch)", "The hundred",
+      "Leg circles", "Frog", "Stomach massage series (Round, Hands back, Reach up)",
+      "Short box series (Round, Flat, Side to side, Tree)",
+      "Elephant", "Knee stretch series (Round, Arched, Knees off)", "Running", "Pelvic lift"
+    ],
+    "Intermediate": [
+      "Footwork series", "The hundred", "Short spine massage", "Coordination", "Swan on the barrel",
+      "Long box series (Pulling straps, Backstroke, Teaser)", 
+      "Short box series (Round, Flat, Side to side, Twist, Tree)", 
+      "Long stretch series (Long stretch, Down stretch, Up stretch, Elephant)",
+      "Stomach massage series (Round, Hands back, Reach up, Twist)", "Semi-circles", "Leg circles",
+      "Knee stretch series (Round, Arched, Knees off)", "Running", "Pelvic lift", "Side split", "Front split"
+    ],
+    "Advanced": [
+      "Footwork series", "The hundred", "Overhead", "Coordination", "Rowing (Into the sternum, 90 degrees, From the chest, From the hips, Shave the head, The hug)",
+      "Swan on the barrel", "Long box series (Pulling straps, Backstroke, Teaser, Horseback)",
+      "Short box series (Round, Flat, Side to side, Twist, Tree)",
+      "Long stretch series (Long stretch, Down stretch, Up stretch, Elephant)",
+      "Stomach massage series (Round, Hands back, Reach up, Twist)", "Semi-circles", "Chest expansion",
+      "Thigh stretch", "Arm circles", "Snake/Twist", "Corkscrew", "Long spine massage",
+      "Knee stretch series (Round, Arched, Knees off)", "Running", "Pelvic lift", "Balance control (Push up front, Push up back)", "Side split", "Front split", "Russian split"
+    ]
+  },
+  "Cadillac": {
+    "Basic": [
+      "Rolling back", "Roll back bar w/one arm", 
+      "Leg spring series (Circles, Scissors, Walking, Bicycle, Beats)", 
+      "Arm spring series (Down and up, Circles, Triceps)",
+      "Push through bar", "Chest expansion standing", "Breathing"
+    ],
+    "Intermediate": [
+      "Leg spring series (Ronde de jambe, 4 count frog, 6 count frog)", 
+      "Tower", "Monkey", "Teaser w/push through bar", "Press down", "Press down mermaid",
+      "Kneeling chest expansion", "Thigh stretch", "Long back stretch arms",
+      "Rolling in and out", "Shoulder roll down", "Rolling stomach massage",
+      "Traditional ending series (Breathing, Spread eagle, Pull-ups, Hanging pull-ups, Half hanging, Hanging)"
+    ],
+    "Advanced": [
+      "Leg springs in the air", "Airplane", "Side leg springs (Bicycle)", "Hip stretch", "Reverse push through",
+      "Arm series (Boxing, Shave, Hug, Butterfly, Squats, Side arm, Fencing, Side arm, Squats, Flying eagle)", 
+      "Shave and press down"
+    ]
+  },
+  "Wunda chair": {
+    "Basic": ["Push down", "Pull up", "Spine stretch forward", "Press down teaser", "Teaser stretch"],
+    "Intermediate": [
+      "Footwork series", "Swan dive", "Grasshopper", "Pumping one arm", 
+      "Teaser sitting on chair", "Sitting mermaid", "Arm frog", "Kneeling mermaid", 
+      "Horseback", "Twist", "Tendon stretch", "Mountain climb", "Tabletop", 
+      "Front balance control", "Push down w/one arm", "Pumping standing", "Pumping on knees"
+    ],
+    "Advanced": [
+      "Backward arms", "Push up sideways 1", "Push up sideways 2", 
+      "Tendon stretch w/one leg", "Tabletop one leg", "Pull up w/one arm",
+      "Flying eagle", "Side balance control", "Corkscrew", "Frog facing in", "Frog facing out", "Push ups (Front, Side, Back)", "Star"
+    ]
+  },
+  "Small barrel / Spine corrector": {
+    "All levels": [
+      "Stretch w/bar", "Arm circles", "Leg series (Circles, Scissors, Walking, Bicycle, Beats)", 
+      "Roll in and out", "Rest position", "Teaser", "Hip circles", "Side sit ups", "Shoulder bridge", 
+      "Leg circles onto the head", "Swan", "Grasshopper", "Rocking", "Swimming"
+    ]
+  },
+  "Large barrel": {
+    "All levels": [
+      "Ballet stretches (Front, Front w/bent leg, Swedish bar, Thigh stretch)", 
+      "Swan on the barrel", "Horseback", "Short box on barrel (Round, Flat, Side to side, Twist)", 
+      "Side sit up", "Backward stretch (Side, Hanging, Handstand, Jumping off stomach)"
+    ]
+  },
+  "Electric chair": {
+    "All levels": [
+      "Pumping series (Pumping, One leg, Parallel)", "Going up front", "Going up side",
+      "Pumping (Demi-point, Standing sideways, Cross over)", "Achilles stretch",
+      "Press up bottom", "Press up front"
+    ]
+  },
+  "Spine corrector": {
+    "All levels": [
+      "Teaser", "Hip circles", "Side sit ups", "Shoulder bridge", "Leg circles onto the head", 
+      "Swan", "Grasshopper", "Rocking", "Swimming"
+    ]
+  },
+  "Pedi-pull": {
+    "All levels": [
+      "Chest expansion", "Arm circles", "Knee bends", "Centering", "Knee bends on one leg"
+    ]
+  },
   "기타": []
 }
