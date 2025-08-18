@@ -366,7 +366,7 @@ elif nav == "📅 스케줄":
     if sessions.empty:
         big_info("세션 데이터가 없습니다.")
     else:
-        mode = st.segmented_control("보기", options=["일","주","월"], default="주")
+        mode = st.segmented_control("보기", options=["일","주","월"], horizontal=True, index=1)
         base = st.date_input("기준 날짜", value=date.today())
         base_dt = datetime.combine(base, datetime.min.time())
 
@@ -438,3 +438,4 @@ elif nav == "🍒 수입":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
