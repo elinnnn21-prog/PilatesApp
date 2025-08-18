@@ -18,6 +18,10 @@ def ensure_files():
         pd.DataFrame(columns=cols).to_csv(MEMBERS_CSV, index=False, encoding="utf-8-sig")
 
 def load_members() -> pd.DataFrame:
+    def norm_phone(s: str) -> str:
+    """전화번호 비교용: 숫자만 남김 (010-1111-2222 == 01011112222)"""
+    return "".join(ch for ch in str(s) if ch.isdigit())
+
     ensure_files()
     return pd.read_csv(MEMBERS_CSV, dtype=str, encoding="utf-8-sig").fillna("")
 
@@ -132,3 +136,4 @@ if nav == "🧑‍🤝‍🧑 멤버":
         show = members.copy()
         show["등록일"] = pd.to_datetime(show["등록일"], errors="coerce").dt.date.astype(str)
         st.dataframe(show, use_container_width=True, hide_index=True)
+
