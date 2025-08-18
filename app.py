@@ -7,6 +7,9 @@ from typing import List, Dict
 import pandas as pd
 import streamlit as st
 
+# 앱 실행 확인용
+st.write("앱이 실행 되고 있어요!")
+
 # ========== 기본 설정 ==========
 st.set_page_config(page_title="Pilates Manager", page_icon="🏋️", layout="wide")
 DATA_DIR = Path(".")
@@ -438,5 +441,6 @@ elif nav == "🍒 수입":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
 
 
