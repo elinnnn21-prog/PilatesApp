@@ -481,83 +481,145 @@ elif st.session_state.page == "member":
     st.header("👥 멤버 관리")
 
     with st.expander("➕ 등록/수정/재등록", expanded=True):
-        left, right = st.columns([1,1])
-        with left:
-            names = ["(새 회원)"] + members["이름"].tolist()
-            sel = st.selectbox("회원 선택", names)
-            name = st.text_input("이름", "" if sel=="(새 회원)" else sel)
-            # 중복 전화번호 경고
-            default_phone = ""
-            if sel!="(새 회원)" and sel in members["이름"].values:
-                default_phone = members.loc[members["이름"]==sel,"연락처"].iloc[0]
-            phone = st.text_input("연락처", value=default_phone, placeholder="010-0000-0000")
-            if phone and (members[(members["연락처"]==phone) & (members["이름"]!=name)].shape[0] > 0):
-                st.error("⚠️ 동일한 전화번호가 이미 존재합니다.")
-        with right:
-            default_site = "F"
-            if sel!="(새 회원)" and sel in members["이름"].values:
-                default_site = members.loc[members["이름"]==sel,"기본지점"].iloc[0] or "F"
-            site = st.selectbox("기본 지점", [SITE_LABEL[s] for s in SITES], index=SITES.index(default_site))
-            site = site.split()[0]
-            reg_default = date.today()
-            if sel!="(새 회원)" and sel in members["이름"].values:
-                try:
-                    reg_default = pd.to_datetime(members.loc[members["이름"]==sel,"등록일"].iloc[0]).date()
-                except Exception:
-                    pass
-            reg_date = st.date_input("등록일", reg_default)
-            add_cnt = st.number_input("재등록(+횟수)", 0, 100, 0, 1)
-        note = st.text_input("메모(선택)",
-                             value="" if sel=="(새 회원)" else members.loc[members["이름"]==sel,"메모"].iloc[0]
-                             if (sel in members["이름"].values) else "")
+        left, right = st.columns([1, 1])
 
+        # ---------------- 좌측: 회원 선택 + 이름/연락처 ----------------
+        with left:
+            names = ["(새 회원)"] + (members["이름"].tolist() if not members.empty else [])
+            sel = st.selectbox("회원 선택", names, index=0)
+            is_new = (sel == "(새 회원)")
+
+            name = st.text_input("이름", "" if is_new else sel)
+
+            # 선택된 회원의 기존 연락처 불러오기
+            default_phone = ""
+            if not is_new and sel in members["이름"].values:
+                default_phone = members.loc[members["이름"] == sel, "연락처"].iloc[0]
+            phone = st.text_input("연락처", value=default_phone, placeholder="010-0000-0000")
+
+            # 중복 전화번호 경고(본인 제외)
+            if phone.strip():
+                dup = members[(members["연락처"] == phone.strip()) & (members["이름"] != (name.strip() if not is_new else ""))]
+                if not dup.empty:
+                    st.warning(f"⚠️ 동일한 전화번호가 이미 존재합니다: {', '.join(dup['이름'].tolist())}")
+
+        # ---------------- 우측: 지점/등록일/횟수 ----------------
+        with right:
+            # 기본지점(F/R/V) 표시는 라벨로, 값은 F/R/V 로 저장
+            def _site_label(x): return {"F": "F(플로우)", "R": "R(리유)", "V": "V(방문)"}[x]
+            default_site = "F"
+            if not is_new and sel in members["이름"].values:
+                default_site = members.loc[members["이름"] == sel, "기본지점"].iloc[0] or "F"
+            site_shown = st.selectbox(
+                "기본 지점",
+                [_site_label(s) for s in SITES],  # SITES = ["F","R","V"]
+                index=SITES.index(default_site),
+            )
+            site = site_shown.split("(")[0]  # "F(플로우)" -> "F"
+
+            reg_default = date.today()
+            if not is_new and sel in members["이름"].values:
+                try:
+                    reg_default = pd.to_datetime(members.loc[members["이름"] == sel, "등록일"].iloc[0]).date()
+                except Exception:
+                    reg_default = date.today()
+            reg_date = st.date_input("등록일", reg_default)
+
+            # ⭐ 신규면 '등록 횟수', 기존이면 '추가 횟수'
+            cnt_label = "등록 횟수" if is_new else "추가 횟수"
+            cnt_default = 10 if is_new else 1
+            add_cnt = st.number_input(cnt_label, min_value=0, max_value=999, value=cnt_default, step=1)
+
+        note = st.text_input(
+            "메모(선택)",
+            value="" if is_new else (
+                members.loc[members["이름"] == sel, "메모"].iloc[0]
+                if (sel in members["이름"].values) else ""
+            )
+        )
+
+        # ---------------- 버튼들 ----------------
         c1, c2, c3 = st.columns(3)
+
+        # 저장/수정
         with c1:
             if st.button("저장/수정", use_container_width=True):
                 if not name.strip():
                     st.error("이름을 입력하세요.")
+                elif not phone.strip():
+                    st.error("연락처를 입력하세요.")
                 else:
-                    if sel=="(새 회원)":
+                    if is_new:
+                        # 신규: 총등록/남은횟수 = '등록 횟수'
                         row = pd.DataFrame([{
-                            "id": str(len(members)+1),"이름":name.strip(),"연락처":phone.strip(),
-                            "기본지점":site,"등록일":reg_date.isoformat(),
-                            "총등록":"0","남은횟수":"0","회원유형":"일반",
-                            "메모":note,"재등록횟수":"0","최근재등록일":""
+                            "id": str(len(members) + 1),
+                            "이름": name.strip(),
+                            "연락처": phone.strip(),
+                            "기본지점": site,
+                            "등록일": reg_date.isoformat(),
+                            "총등록": str(int(add_cnt)),
+                            "남은횟수": str(int(add_cnt)),
+                            "회원유형": "일반",
+                            "메모": note,
+                            "재등록횟수": "0",
+                            "최근재등록일": ""
                         }])
                         members = pd.concat([members, row], ignore_index=True)
+                        save_members(members)
+                        st.success(f"신규 등록 완료: {name} (등록 {int(add_cnt)}회)")
                     else:
-                        idx = members.index[members["이름"]==sel][0]
-                        members.loc[idx,["이름","연락처","기본지점","등록일","메모"]] = \
+                        # 기존: 기본 정보만 수정 (횟수 반영은 아래 '재등록' 버튼에서)
+                        idx = members.index[members["이름"] == sel][0]
+                        members.loc[idx, ["이름", "연락처", "기본지점", "등록일", "메모"]] = \
                             [name.strip(), phone.strip(), site, reg_date.isoformat(), note]
-                    save_members(members)
-                    st.success("저장 완료")
+                        save_members(members)
+                        st.success("수정 완료")
+
+        # 재등록(+횟수 반영)
         with c2:
-            if st.button("재등록(+횟수 반영)", use_container_width=True, disabled=(sel=="(새 회원)")):
-                if sel=="(새 회원)":
-                    st.error("기존 회원 선택")
+            if st.button("재등록(+횟수 반영)", use_container_width=True, disabled=is_new):
+                if is_new:
+                    st.error("기존 회원을 먼저 선택하세요.")
                 else:
-                    idx = members.index[members["이름"]==sel][0]
-                    members.loc[idx,"총등록"] = str(int(float(members.loc[idx,"총등록"] or 0)) + int(add_cnt))
-                    members.loc[idx,"남은횟수"] = str(int(float(members.loc[idx,"남은횟수"] or 0)) + int(add_cnt))
-                    members.loc[idx,"재등록횟수"] = str(int(float(members.loc[idx,"재등록횟수"] or 0)) + 1)
-                    members.loc[idx,"최근재등록일"] = date.today().isoformat()
+                    idx = members.index[members["이름"] == sel][0]
+                    members.loc[idx, "총등록"] = str(int(float(members.loc[idx, "총등록"] or 0)) + int(add_cnt))
+                    members.loc[idx, "남은횟수"] = str(int(float(members.loc[idx, "남은횟수"] or 0)) + int(add_cnt))
+                    # 재등록 카운트/최근일 갱신(없으면 생성)
+                    if "재등록횟수" not in members.columns:
+                        members["재등록횟수"] = "0"
+                    if "최근재등록일" not in members.columns:
+                        members["최근재등록일"] = ""
+                    members.loc[idx, "재등록횟수"] = str(int(float(members.loc[idx, "재등록횟수"] or 0)) + 1)
+                    members.loc[idx, "최근재등록일"] = date.today().isoformat()
                     save_members(members)
-                    st.success(f"{sel} 재등록 반영")
+                    st.success(f"{sel} 재등록 +{int(add_cnt)}회 반영")
+
+        # 삭제
         with c3:
             del_name = st.selectbox("삭제 대상", members["이름"].tolist() if not members.empty else [])
             if st.button("멤버 삭제", use_container_width=True, disabled=members.empty):
-                members = members[members["이름"]!=del_name].reset_index(drop=True)
+                members = members[members["이름"] != del_name].reset_index(drop=True)
                 save_members(members)
                 st.success(f"{del_name} 삭제 완료")
 
+    # ---------------- 현재 멤버 보기 ----------------
     with st.expander("📋 현재 멤버 보기", expanded=False):
         if members.empty:
             big_info("등록된 멤버가 없습니다.")
         else:
             show = members.copy()
-            for c in ["등록일","최근재등록일"]:
+            # 누락 컬럼 보완
+            for col in ["최근재등록일", "재등록횟수", "총등록", "남은횟수", "등록일", "기본지점", "연락처", "메모"]:
+                if col not in show.columns:
+                    show[col] = ""
+            for c in ["등록일", "최근재등록일"]:
                 show[c] = pd.to_datetime(show[c], errors="coerce").dt.date.astype(str)
-            st.dataframe(show, use_container_width=True, hide_index=True)
+            st.dataframe(
+                show[["이름", "연락처", "기본지점", "등록일", "총등록", "남은횟수", "재등록횟수", "최근재등록일", "메모"]],
+                use_container_width=True,
+                hide_index=True
+            )
+
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -665,5 +727,6 @@ elif st.session_state.page == "cherry":
             v = df.sort_values("날짜", ascending=False)
             v["날짜"] = pd.to_datetime(v["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(v, use_container_width=True, hide_index=True)
+
 
 
