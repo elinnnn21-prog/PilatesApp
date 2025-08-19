@@ -8,6 +8,12 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import streamlit as st
 
+def _norm_phone(s: str) -> str:
+    """하이픈/공백 제거하고 숫자만 남겨 비교용으로 사용"""
+    if s is None:
+        return ""
+    return "".join(ch for ch in str(s) if ch.isdigit())
+
 # ─────────────────────────────────────────────────────────────────────
 # 기본 셋업
 # ───────────브라우저 아이콘
@@ -839,6 +845,7 @@ elif st.session_state.page == "cherry":
             v = df.sort_values("날짜", ascending=False)
             v["날짜"] = pd.to_datetime(v["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(v, use_container_width=True, hide_index=True)
+
 
 
 
