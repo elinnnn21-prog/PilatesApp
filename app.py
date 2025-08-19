@@ -11,7 +11,8 @@ import streamlit as st
 # ─────────────────────────────────────────────────────────────────────
 # 기본 셋업
 # ─────────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Pilates Manager", page_icon="📅", layout="wide")
+st.set_page_config(page_title="Pilates Manager", page_icon="✨", layout="wide")
+
 
 DATA_DIR     = Path(".")
 MEMBERS_CSV  = DATA_DIR / "members.csv"
@@ -664,3 +665,4 @@ elif st.session_state.page == "cherry":
             v = df.sort_values("날짜", ascending=False)
             v["날짜"] = pd.to_datetime(v["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(v, use_container_width=True, hide_index=True)
+
