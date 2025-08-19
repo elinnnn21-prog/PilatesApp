@@ -576,7 +576,7 @@ elif st.session_state.page == "session":
 
     spec_note = st.text_area("특이사항(선택)", height=70)
     homework  = st.text_area("숙제(선택)", height=70 if session_type=="개인" else 40)
-    memo      = st.text_area("메모(선택)", height=60)
+    memo = st.text_area("메모(선택)", value="", height=60, key="session_memo")
 
     cancel = st.checkbox("취소")
     reason = st.text_input("사유(선택)", placeholder="예: 회원 사정/강사 사정 등")
@@ -800,6 +800,7 @@ elif st.session_state.page == "cherry":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
 
 
 
