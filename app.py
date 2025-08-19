@@ -505,178 +505,191 @@ if st.session_state.page == "schedule":
 # ✍️ 세션 (개인/그룹)
 # ==============================
 elif st.session_state.page == "session":
-    st.subheader("✍️ 세션 기록")
+    st.header("✍️ 세션 기록")
 
-    # DB (동작 사전)
-    ex_db = load_ex_db()  # {"Mat":[...], "Reformer":[...], ...}
+    # 선택 동작을 유지하기 위한 상태 저장소 (기구를 바꿔도 선택 유지)
+    if "moves_keep" not in st.session_state:
+        st.session_state["moves_keep"] = []
 
     if members.empty:
         big_info("먼저 멤버를 등록하세요.")
+    # ===== 공통 입력 =====
+    cols = st.columns([1,1,1,1])
+    with cols[0]:
+        day = st.date_input("날짜", value=date.today())
+        tm  = st.time_input("시간", value=datetime.now().time().replace(second=0, microsecond=0))
+        when = datetime.combine(day, tm)
+
+    with cols[1]:
+        session_type = st.radio("구분", ["개인","그룹"], horizontal=True)
+
+    with cols[2]:
+        if session_type == "개인":
+            mname = st.selectbox("멤버", members["이름"].tolist() if not members.empty else [])
+            # 멤버의 기본지점(또는 지점) 자동 반영
+            auto_site = "F"
+            if mname and mname in members["이름"].values:
+                # 새 스키마(기본지점) 또는 구 스키마(지점) 둘 다 대비
+                if "기본지점" in members.columns:
+                    auto_site = members.loc[members["이름"]==mname, "기본지점"].iloc[0] or "F"
+                elif "지점" in members.columns:
+                    # 한글값 → F/R/V 매핑
+                    orig = members.loc[members["이름"]==mname, "지점"].iloc[0]
+                    mapping = {"플로우":"F","리유":"R","방문":"V"}
+                    auto_site = mapping.get(orig, "F")
+            site = st.selectbox("지점", ["F","R","V"], index=["F","R","V"].index(auto_site))
+        else:
+            # 그룹은 멤버 선택 없음
+            mname = ""
+            site = st.selectbox("지점", ["F","R","V"])
+
+    with cols[3]:
+        minutes = st.number_input("수업 분", 10, 180, 50, 5)
+
+    # ===== 개인 / 그룹 분기 =====
+    if session_type == "개인":
+        # 기구 복수 선택
+        equip_choices = ["Reformer","Cadillac","Wunda chair","Ladder Barrel","Spine Corrector","Small Barrel","Mat","Magic Circle","Arm Chair","High/Electric Chair","Foot Corrector","Toe Corrector","Neck Stretcher","Pedi-Pul","기타"]
+        equipments = st.multiselect("기구(복수 선택 가능)", equip_choices, key="sess_equips")
+
+        # 동작 DB 로드
+        ex_db = load_ex_db()
+
+        # 기구 → DB 키 매핑 (네가 보낸 대분류 이름들을 최대한 커버)
+        key_map = {
+            "Mat": ["Mat","Mat(Basic)","Mat(Intermediate/Advanced)"],
+            "Reformer": ["Reformer"],
+            "Cadillac": ["Cadillac"],
+            "Wunda chair": ["Wunda chair","Wunda Chair"],
+            "Ladder Barrel": ["Ladder Barrel","Ladder barrel"],
+            "Spine Corrector": ["Spine Corrector","Spine corrector/Barrel","Spine corrector"],
+            "Small Barrel": ["Small Barrel","Small barrel"],
+            "Magic Circle": ["Magic Circle"],
+            "Arm Chair": ["Arm Chair","Arm chair"],
+            "High/Electric Chair": ["High/Electric Chair","Electric chair","High chair"],
+            "Foot Corrector": ["Foot Corrector"],
+            "Toe Corrector": ["Toe Corrector"],
+            "Neck Stretcher": ["Neck Stretcher"],
+            "Pedi-Pul": ["Pedi-pul","Ped-O-Pul","Pedi-Pul"],
+            "기타": ["기타"]
+        }
+
+        # 선택한 기구들의 동작 풀 만들기
+        move_pool = []
+        for eq in equipments:
+            for k in key_map.get(eq, []):
+                if k in ex_db:
+                    move_pool.extend(list(ex_db[k]))
+        move_pool = set(move_pool)
+
+        # 보여줄 옵션 = 현재 기구 동작 ∪ 이미 선택해둔 동작 (기구 바꿔도 유지)
+        options = sorted(move_pool.union(set(st.session_state["moves_keep"])))
+
+        chosen_moves = st.multiselect(
+            "운동 동작(복수 선택)",
+            options=options,
+            default=st.session_state["moves_keep"],
+            key="sess_moves"
+        )
+        # 상태에 반영
+        st.session_state["moves_keep"] = chosen_moves
+
+        # 추가 동작/특이사항/숙제 (개인만)
+        add_free = st.text_input("추가 동작(콤마 , 로 구분)", placeholder="예: Side bends, Mermaid", key="sess_extra")
+        spec_note = st.text_area("특이사항(선택)", height=70, key="sess_spec")
+        homework  = st.text_input("숙제(선택)", key="sess_home")
+
+        # 그룹에서는 입력하지 않던 값들 정리용
+        headcount = 1
+
     else:
-        # ── 공통 입력 ─────────────────────────────────────────────
-        c_top = st.columns([1,1,1,1])
-        with c_top[0]:
-            day = st.date_input("날짜", value=date.today(), key="sess_date")
-        with c_top[1]:
-            # 과거/미래 모두 허용 (초 단위 제거)
-            tnow = datetime.now().time().replace(second=0, microsecond=0)
-            time_val = st.time_input("시간", value=tnow, key="sess_time")
-        with c_top[2]:
-            session_type = st.radio("구분", ["개인","그룹"], horizontal=True, key="sess_type")
-        with c_top[3]:
-            minutes = st.number_input("수업 분", 10, 180, 50, 5, key="sess_min")
+        # 그룹: 인원만, 동작/추가동작/특이사항/숙제는 입력하지 않음(요청 반영)
+        gcols = st.columns([1,1])
+        with gcols[0]:
+            headcount = st.number_input("인원(그룹)", 1, 30, 2, 1)
+        with gcols[1]:
+            pass
 
-        c_mid = st.columns([1,1,1,1])
-        with c_mid[0]:
-            # 개인: 멤버 선택 → 기본지점 자동
-            if session_type == "개인":
-                mname = st.selectbox("멤버(개인)", members["이름"].tolist(), key="sess_member")
-                auto_site = members.loc[members["이름"]==mname, "기본지점"].iloc[0] if mname in members["이름"].values else "F"
-            else:
-                mname = ""
-                auto_site = "F"
+        equipments = st.multiselect("기구(복수 선택 가능)", ["Reformer","Cadillac","Wunda chair","Ladder Barrel","Spine Corrector","Small Barrel","Mat","기타"], key="sess_equips_grp")
+        chosen_moves = []   # 기록 X
+        add_free = ""       # 기록 X
+        spec_note = ""      # 기록 X
+        homework  = ""      # 기록 X
 
-        with c_mid[1]:
-            # 지점 표시/선택 (라벨 → 코드 변환)
-            site_label_default = SITE_LABEL.get(auto_site, "F")
-            site_label = st.selectbox(
-                "지점",
-                [SITE_LABEL[s] for s in SITES],
-                index=SITES.index(auto_site),
-                key="sess_site"
-            )
-            site = site_label.split()[0]  # "F (플로우)" → "F"
+    cancel = st.checkbox("취소", value=False)
+    reason = st.text_input("사유(선택)", placeholder="예: 회원 사정/강사 사정 등")
 
-        with c_mid[2]:
-            level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"], key="sess_level")
+    # ===== 저장 버튼 =====
+    if st.button("세션 저장", use_container_width=True, type="primary"):
+        # 추가 동작을 DB(기타)에 누적 저장
+        if add_free.strip():
+            new_moves = [x.strip() for x in add_free.split(",") if x.strip()]
+            exdb = load_ex_db()
+            exdb.setdefault("기타", [])
+            for nm in new_moves:
+                if nm not in exdb["기타"]:
+                    exdb["기타"].append(nm)
+            save_ex_db(exdb)
 
-        with c_mid[3]:
-            headcount = st.number_input(
-                "인원(그룹)",
-                min_value=1,
-                max_value=10,
-                value=(2 if session_type=="그룹" else 1),
-                step=1,
-                disabled=(session_type=="개인"),
-                key="sess_headcount"
-            )
+        # 방문 실수령(개인+V) 멤버에서 가져오기 (없으면 0)
+        visit_custom = None
+        if session_type=="개인" and site=="V":
+            if mname and (mname in members["이름"].values) and ("방문실수령" in members.columns):
+                try:
+                    visit_custom = float(members.loc[members["이름"]==mname,"방문실수령"].iloc[0] or 0)
+                except Exception:
+                    visit_custom = 0.0
 
-        # ── 개인/그룹 분기 입력 ─────────────────────────────────────
-      if session_type == "개인":
-    # (A) 기구 여러 개 선택
-    equip_choices = ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"]
-    equipments = st.multiselect("기구(복수 선택 가능)", equip_choices, key="sess_equips")
+        # 페이 계산 (On the house는 세션 탭에서는 취급하지 않음 → 스케줄에서만)
+        gross, net = calc_pay(site, session_type, int(headcount), visit_custom)
 
-    # (B) 선택 기구에 해당하는 동작만 모으기
-    ex_db = load_ex_db()
-    key_map = {
-        "Mat": ["Mat","Mat(Basic)","Mat(Intermediate/Advanced)"],
-        "Reformer": ["Reformer"],
-        "Cadillac": ["Cadillac"],
-        "Wunda chair": ["Wunda chair","Wunda Chair"],
-        "Barrel/Spine": ["Spine corrector/Barrel","Small Barrel","Large barrel","Ladder Barrel",
-                         "Barrel","Spine Corrector","Small barrel","Large Barrel","Ladder barrel"],
-        "기타": ["기타","Magic Circle","Arm Chair","Ped-O-Pul","High/Electric Chair",
-               "Foot Corrector","Toe Corrector","Neck Stretcher"]
-    }
+        # 저장 행 만들기
+        row = pd.DataFrame([{
+            "id": str(len(sessions)+1),
+            "날짜": when,
+            "지점": site,                          # F/R/V
+            "구분": session_type,                 # 개인/그룹
+            "이름": mname if session_type=="개인" else "",
+            "인원": int(headcount),
+            "레벨": "",                           # (레벨은 스케줄에서 쓰고, 세션은 생략해도 됨)
+            "기구": ", ".join(equipments),
+            "동작(리스트)": "; ".join(chosen_moves),
+            "추가동작": add_free,
+            "특이사항": spec_note,
+            "숙제": homework,
+            "메모": "",
+            "취소": bool(cancel),
+            "사유": reason,
+            "분": int(minutes),
+            "온더하우스": False,                  # 세션 탭에서는 항상 False. (스케줄 처리에서만 True)
+            "페이(총)": float(gross),
+            "페이(실수령)": float(net)
+        }])
 
-    move_pool = []
-    for eq in equipments:
-        for k in key_map.get(eq, []):
-            if k in ex_db:
-                move_pool.extend(list(ex_db[k]))
-    move_pool = set(move_pool)  # 중복 제거
+        # 저장
+        sessions = pd.concat([sessions, row], ignore_index=True)
+        save_sessions(sessions)
 
-    # (C) 기구를 바꿔도 기존 선택이 유지되게:
-    #     보여줄 옵션 = 현재 기구 동작 ∪ 이미 선택해 둔 동작
-    options = sorted(move_pool.union(set(st.session_state["moves_keep"])))
-
-    chosen_moves = st.multiselect(
-        "운동 동작(복수)",
-        options=options,
-        default=st.session_state["moves_keep"],   # 유지!
-        key="sess_moves"
-    )
-
-    # 선택 변경 사항을 상태에 반영
-    st.session_state["moves_keep"] = chosen_moves
-
-    # (D) 추가 동작/메모/무료
-    add_free = st.text_input("추가 동작(콤마 , 로 구분)", placeholder="예: Side bends, Mermaid", key="sess_extra")
-    memo = st.text_area("특이사항/메모(선택)", height=70, key="sess_memo")
-   
-else:
-    # 그룹은 동작/추가동작/특이사항 입력 없음
-    st.info("그룹 세션은 동작 기록 없이 출석만 처리됩니다.")
-    equipments = st.multiselect("기구(복수 선택 가능)", ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"], key="sess_equips_grp")
-    chosen_moves = []
-    add_free = ""
-    memo = ""
-    onth = st.checkbox("✨ On the house (무료)", key="sess_onth_grp")
-
-
-        # ── 저장 버튼 ─────────────────────────────────────────────
-        if st.button("세션 저장", use_container_width=True, key="sess_save"):
-            when = datetime.combine(day, time_val)
-
-            # 사용자가 '추가 동작'에 입력한 내용은 ex_db["기타"]에 누적 저장
-            if add_free.strip():
-                new_moves = [x.strip() for x in add_free.split(",") if x.strip()]
-                ex_db.setdefault("기타", [])
-                for nm in new_moves:
-                    if nm not in ex_db["기타"]:
-                        ex_db["기타"].append(nm)
-                save_ex_db(ex_db)
-
-            # 페이 계산
-            # 방문 실수령은 멤버 등록 시 회원유형/방문 단가로 처리한다고 가정 → calc_pay가 내부에서 처리
-            gross, net = calc_pay(site, session_type, int(headcount), None)
-            if onth:
-                gross = net = 0.0  # 무료
-
-            # 세션 한 줄 생성
-            row = pd.DataFrame([{
-                "id": ensure_id(sessions),
-                "날짜": when,
-                "지점": site,
-                "구분": session_type,
-                "이름": mname if session_type=="개인" else "",
-                "인원": int(headcount) if session_type=="그룹" else 1,
-                "레벨": level,
-                "기구": ", ".join(equipments),          # 여러 기구를 쉼표로 저장
-                "동작(리스트)": "; ".join(chosen_moves), # 개인만 값이 존재
-                "추가동작": add_free,
-                "메모": memo,
-                "취소": False,
-                "사유": "",
-                "분": int(minutes),
-                "온더하우스": bool(onth),
-                "페이(총)": float(gross),
-                "페이(실수령)": float(net)
-            }])
-            sessions = pd.concat([sessions, row], ignore_index=True)
-            save_sessions(sessions)
-
-            # 개인 세션 차감 (취소 아니고 무료도 아니고, 멤버 존재할 때)
-            if (session_type=="개인") and (mname in members["이름"].values) and (not onth):
+        # 개인 & 취소 아님 & 온더하우스 아님 → 1회 차감
+        if (session_type=="개인") and mname and (not cancel):
+            # 온더하우스는 세션 탭에서는 사용하지 않으므로 차감 정상 진행
+            if mname in members["이름"].values:
                 idx = members.index[members["이름"]==mname][0]
                 remain = max(0, int(float(members.loc[idx,"남은횟수"] or 0)) - 1)
                 members.loc[idx,"남은횟수"] = str(remain)
                 save_members(members)
 
-            st.success("세션 저장 완료!")
+        st.success("세션 저장 완료!")
 
-    # ── 최근 세션 목록 ─────────────────────────────────────────────
-    st.subheader("🗂 최근 세션")
+    # ===== 최근 세션 보기 (페이는 표에서 숨김) =====
+    st.subheader("최근 세션")
     if sessions.empty:
         big_info("세션 데이터가 없습니다.")
     else:
         view = sessions.sort_values("날짜", ascending=False).copy()
-        # 날짜 포맷
-        view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
-        # 민감 정보 숨김
-        hide_cols = ["페이(총)","페이(실수령)"]
+        hide_cols = ["페이(총)","페이(실수령)","온더하우스"]
         show_cols = [c for c in view.columns if c not in hide_cols]
+        view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
         st.dataframe(view[show_cols], use_container_width=True, hide_index=True)
 
 # =========================================================
@@ -828,6 +841,7 @@ elif st.session_state.page == "cherry":
             detail = df.sort_values("날짜", ascending=False).copy()
             detail["날짜"] = pd.to_datetime(detail["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(detail, use_container_width=True, hide_index=True)
+
 
 
 
