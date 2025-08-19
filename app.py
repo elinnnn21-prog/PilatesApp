@@ -395,86 +395,60 @@ st.sidebar.markdown("---")
 
 # ======================================
 # 페이지: 스케줄
-# 📅 스케줄
-# ==============================
-elif menu == "스케줄":
-    st.subheader("📅 스케줄")
+# -------- iCal(ICS) 내보내기 헬퍼 --------
+from datetime import timezone
 
-    # 보기/기간 선택
-    vcols = st.columns([1, 1, 2, 1])
-    with vcols[0]:
-        view_mode = st.radio("보기", ["일", "주", "월"], horizontal=True, index=1,
-                             key="sched_view_mode", label_visibility="collapsed")
-    with vcols[1]:
-        base = st.date_input("기준", value=date.today(), key="sched_base", label_visibility="collapsed")
-    with vcols[2]:
-        pass
-    with vcols[3]:
-        pass
+def _fmt_ics_dt(dt):
+    # Asia/Seoul 기준 로컬시간 문자열
+    return dt.strftime("%Y%m%dT%H%M%S")
 
-    base_dt = datetime.combine(base, time.min)
-    if view_mode == "일":
-        start, end = base_dt, base_dt + timedelta(days=1)
-    elif view_mode == "주":
-        start = base_dt - timedelta(days=base_dt.weekday())
-        end = start + timedelta(days=7)
-    else:
-        start = base_dt.replace(day=1)
-        end = (start + pd.offsets.MonthEnd(1)).to_pydatetime() + timedelta(days=1)
+def build_ics_from_df(df: pd.DataFrame, default_minutes: int = 50) -> bytes:
+    """
+    보이는 스케줄 DataFrame(df) → .ics 바이너리로 변환
+    - 종료시간: '분' 컬럼이 있으면 반영, 없으면 default_minutes 사용
+    - title: 개인은 이름, 그룹은 '그룹'으로 표기
+    - location: F/R/V를 한글 라벨로 변환
+    """
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//PilatesApp//Schedule Export//KR",
+        "CALSCALE:GREGORIAN",
+    ]
+    now_utc = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
-    # --------------------------
-    # ✨ 예약 등록 (간소화 버전)
-    # --------------------------
-    st.markdown("#### ✨ 예약 등록")
-    c = st.columns([1, 1, 1, 2, 1])
-    with c[0]:
-        sdate = st.date_input("날짜", value=base, key="sched_date")
-    with c[1]:
-        stime = st.time_input("시간", value=datetime.now().time().replace(second=0, microsecond=0),
-                              key="sched_time")
-    with c[2]:
-        stype = st.radio("구분", ["개인", "그룹"], horizontal=True, key="sched_type")
+    for _, r in df.iterrows():
+        try:
+            start = pd.to_datetime(r["날짜"])
+        except Exception:
+            continue
 
-    # 개인이면 멤버 선택 → 지점 자동(F/R/V). 그룹이면 지점 직접 선택 + 인원.
-    with c[3]:
-        if stype == "개인":
-            mname = st.selectbox("멤버", members["이름"].tolist() if not members.empty else [],
-                                 key="sched_person_member")
-            # 기본 지점 자동(F/R/V)
-            if mname and (mname in members["이름"].values):
-                auto_site = members.loc[members["이름"] == mname, "기본지점"].iloc[0] or "F"
-            else:
-                auto_site = "F"
-            st.info(f"자동 지점: **{SITE_LABEL.get(auto_site, auto_site)}**")
-            site = auto_site
-            headcount = 1
-        else:
-            mname = ""
-            site_label = st.selectbox("지점", [SITE_LABEL[s] for s in SITES],
-                                      index=0, key="sched_group_site")
-            site = site_label.split()[0]
-            headcount = st.number_input("인원(그룹)", 1, 20, 2, 1, key="sched_group_head")
+        try:
+            minutes = int(float(r.get("분", default_minutes) or default_minutes))
+        except Exception:
+            minutes = default_minutes
+        end = start + timedelta(minutes=minutes)
 
-    with c[4]:
-        onth = st.checkbox("✨ On the house", key="sched_onth")
-        memo = st.text_input("메모(선택)", key="sched_memo")
+        title = r["이름"] if str(r.get("이름", "")) else "그룹"
+        loc = SITE_LABEL.get(r.get("지점", ""), r.get("지점", ""))
 
-    if st.button("예약 추가", use_container_width=True, key="sched_add_btn"):
-        when = datetime.combine(sdate, stime)
-        row = pd.DataFrame([{
-            "id": ensure_id(schedule),
-            "날짜": when,
-            "지점": site,
-            "구분": stype,
-            "이름": mname if stype == "개인" else "",
-            "인원": int(headcount),
-            "메모": memo,
-            "온더하우스": bool(onth),
-            "상태": "예약됨"
-        }])
-        schedule = pd.concat([schedule, row], ignore_index=True)
-        save_schedule(schedule)
-        st.success("예약이 추가되었습니다.")
+        ev = [
+            "BEGIN:VEVENT",
+            f"UID:{r.get('id', '')}@pilatesapp",
+            f"DTSTAMP:{now_utc}",
+            f"DTSTART:{_fmt_ics_dt(start)}",
+            f"DTEND:{_fmt_ics_dt(end)}",
+            f"SUMMARY:{title}",
+            f"LOCATION:{loc}",
+        ]
+        memo = str(r.get("메모", "") or "")
+        if memo:
+            ev.append(f"DESCRIPTION:{memo}")
+        ev.append("END:VEVENT")
+        lines.extend(ev)
+
+    lines.append("END:VCALENDAR")
+    return "\n".join(lines).encode("utf-8")
 
     # --------------------------
     # 기간 뷰 (리스트 + 상태 버튼)
@@ -650,6 +624,62 @@ elif menu == "스케줄":
                            data=ics_bytes, file_name=filename, mime="text/calendar",
                            use_container_width=True, key="ics_dl_btn")
         st.caption("받은 .ics 파일을 아이폰/구글 캘린더에 추가하면 일정이 달력에 들어가요.")
+
+# -------- iCal(ICS) 내보내기 헬퍼 --------
+from datetime import timezone
+
+def _fmt_ics_dt(dt):
+    # Asia/Seoul 기준 로컬시간 문자열
+    return dt.strftime("%Y%m%dT%H%M%S")
+
+def build_ics_from_df(df: pd.DataFrame, default_minutes: int = 50) -> bytes:
+    """
+    보이는 스케줄 DataFrame(df) → .ics 바이너리로 변환
+    - 종료시간: '분' 컬럼이 있으면 반영, 없으면 default_minutes 사용
+    - title: 개인은 이름, 그룹은 '그룹'으로 표기
+    - location: F/R/V를 한글 라벨로 변환
+    """
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//PilatesApp//Schedule Export//KR",
+        "CALSCALE:GREGORIAN",
+    ]
+    now_utc = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    for _, r in df.iterrows():
+        try:
+            start = pd.to_datetime(r["날짜"])
+        except Exception:
+            continue
+
+        try:
+            minutes = int(float(r.get("분", default_minutes) or default_minutes))
+        except Exception:
+            minutes = default_minutes
+        end = start + timedelta(minutes=minutes)
+
+        title = r["이름"] if str(r.get("이름", "")) else "그룹"
+        loc = SITE_LABEL.get(r.get("지점", ""), r.get("지점", ""))
+
+        ev = [
+            "BEGIN:VEVENT",
+            f"UID:{r.get('id', '')}@pilatesapp",
+            f"DTSTAMP:{now_utc}",
+            f"DTSTART:{_fmt_ics_dt(start)}",
+            f"DTEND:{_fmt_ics_dt(end)}",
+            f"SUMMARY:{title}",
+            f"LOCATION:{loc}",
+        ]
+        memo = str(r.get("메모", "") or "")
+        if memo:
+            ev.append(f"DESCRIPTION:{memo}")
+        ev.append("END:VEVENT")
+        lines.extend(ev)
+
+    lines.append("END:VCALENDAR")
+    return "\n".join(lines).encode("utf-8")
+
 
 # ======================================
 # 페이지: 세션
@@ -918,6 +948,7 @@ elif st.session_state["page"] == "cherry":
             sch_cnt  = pivot_counts(sch_all[["YM","구분","지점"]], "스케줄(전체)")
             out = pd.concat([sess_cnt, sch_cnt], ignore_index=True).sort_values(["YM","구분","출처"], ascending=[False,True,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
