@@ -26,6 +26,81 @@ SITES = ["F", "R", "V"]  # F: 플로우, R: 리유, V: 방문
 SITE_LABEL = {"F":"F", "R":"R", "V":"V"}
 SITE_COLOR = {"F":"#d9f0ff", "R":"#eeeeee", "V":"#e9fbe9"}
 
+# 상태 뱃지 색상
+BADGE_COLOR = {
+    "예약됨": "#3b82f6",  # 파랑
+    "완료":   "#22c55e",  # 초록
+    "취소됨": "#9ca3af",  # 회색
+    "No Show":"#ef4444",  # 빨강
+}
+
+def badge_html(text: str) -> str:
+    color = BADGE_COLOR.get(text, "#999")
+    return f'<span style="display:inline-block; padding:2px 8px; border-radius:8px; font-size:12px; color:white; background:{color}">{text}</span>'
+
+# -------- iCal(ICS) 내보내기 헬퍼 --------
+from datetime import timezone
+
+def _fmt_ics_dt(dt):
+    # Asia/Seoul 기준 '떠있는 로컬시간' 문자열 (대부분 캘린더에서 정상 인식)
+    return dt.strftime("%Y%m%dT%H%M%S")
+
+def build_ics_from_df(df: pd.DataFrame, default_minutes: int = 50) -> bytes:
+    """
+    현재 화면에 보이는 스케줄 DataFrame(df) -> .ics 바이너리 생성
+    - '취소'/취소됨 건은 df에서 미리 제외해서 넘겨줘.
+    - 종료시간은 '분' 컬럼이 있으면 반영, 없으면 default_minutes 사용.
+    """
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//PilatesApp//Schedule Export//KR",
+        "CALSCALE:GREGORIAN",
+    ]
+    now_utc = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    for _, r in df.iterrows():
+        try:
+            start = pd.to_datetime(r["날짜"])
+        except Exception:
+            continue
+        try:
+            minutes = int(float(r.get("분", default_minutes) or default_minutes))
+        except Exception:
+            minutes = default_minutes
+        end = start + timedelta(minutes=minutes)
+
+        title_bits = []
+        # 이름(개인이면) / 그룹이면 (그룹)
+        title_bits.append(r["이름"] if str(r.get("이름","")).strip() else "(그룹)")
+        # 지점 표기(F/R/V)나 한글지점 중 하나가 있을 수 있음
+        if "지점" in r and str(r["지점"]).strip():
+            title_bits.append(str(r["지점"]))
+        # 구분(개인/그룹)
+        if "구분" in r and str(r["구분"]).strip():
+            title_bits.append(str(r["구분"]))
+
+        summary = " · ".join([x for x in title_bits if x])
+        description_bits = []
+        for col in ["레벨","기구","특이사항","숙제","메모"]:
+            if col in df.columns and str(r.get(col,"")).strip():
+                description_bits.append(f"{col}: {r[col]}")
+        description = "\\n".join(description_bits)
+
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{r.get('id','')}-{_fmt_ics_dt(start)}@pilatesapp",
+            f"DTSTAMP:{now_utc}",
+            f"DTSTART:{_fmt_ics_dt(start)}",
+            f"DTEND:{_fmt_ics_dt(end)}",
+            f"SUMMARY:{summary}",
+            f"DESCRIPTION:{description}",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines).encode("utf-8")
+
 # -----------------------------
 # 동작 DB(JSON) 로딩/저장 유틸
 # -----------------------------
@@ -705,4 +780,5 @@ elif st.session_state.page == "cherry":
             detail = df.sort_values("날짜", ascending=False).copy()
             detail["날짜"] = pd.to_datetime(detail["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(detail, use_container_width=True, hide_index=True)
+
 
