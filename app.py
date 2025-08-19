@@ -374,7 +374,8 @@ if st.session_state.page == "schedule":
 # ─────────────────────────────────────────────────────────────────────
 # 페이지: 세션
 # ==========================================================
-# 📝 세션 기록  (과거 기록 지원 + 빠른 날짜 버튼)
+# ==========================================================
+# ✍️ 세션 기록  (과거 기록 지원 + 날짜/시간 유지 + 장비별 동작 필터)
 # ==========================================================
 elif st.session_state.page == "session":
     st.header("✍️ 세션 기록")
@@ -382,95 +383,123 @@ elif st.session_state.page == "session":
     if members.empty:
         big_info("먼저 멤버를 등록하세요.")
     else:
-        # ---- 날짜/시간: 과거도 자유롭게 선택 + 빠른 버튼 ----
-        col_date = st.columns([2,1,1,1,1])
-        with col_date[0]:
-            day = st.date_input("날짜", value=date.today())
-        with col_date[1]:
+        # ---------- 날짜/시간: 세션 상태로 유지 (리런되어도 안 초기화) ----------
+        if "sess_day" not in st.session_state:
+            st.session_state.sess_day = date.today()
+        if "sess_time" not in st.session_state:
+            st.session_state.sess_time = datetime.now().replace(second=0, microsecond=0).time()
+
+        cols_top = st.columns([2,1,1,1,1])
+        with cols_top[0]:
+            st.session_state.sess_day = st.date_input("날짜", value=st.session_state.sess_day, key="sess_day_input")
+        with cols_top[1]:
             if st.button("오늘"):
-                day = date.today()
-        with col_date[2]:
+                st.session_state.sess_day = date.today()
+                st.rerun()
+        with cols_top[2]:
             if st.button("어제"):
-                day = date.today() - timedelta(days=1)
-        with col_date[3]:
+                st.session_state.sess_day = date.today() - timedelta(days=1)
+                st.rerun()
+        with cols_top[3]:
             if st.button("-7일"):
-                day = date.today() - timedelta(days=7)
-        with col_date[4]:
+                st.session_state.sess_day = date.today() - timedelta(days=7)
+                st.rerun()
+        with cols_top[4]:
             if st.button("-30일"):
-                day = date.today() - timedelta(days=30)
+                st.session_state.sess_day = date.today() - timedelta(days=30)
+                st.rerun()
 
-        time_str = st.time_input("시간", value=datetime.now().time())
-        when = datetime.combine(day, time_str)
+        st.session_state.sess_time = st.time_input(
+            "시간",
+            value=st.session_state.sess_time,
+            step=timedelta(minutes=5),
+            key="sess_time_input",
+        )
 
-        # 안내 뱃지
+        when = datetime.combine(st.session_state.sess_day, st.session_state.sess_time)
+
         if when.date() < date.today():
             st.caption("🕒 과거 세션을 기록 중입니다.")
         elif when > datetime.now():
             st.caption("⏭ 미래 일정으로 저장됩니다.")
 
-        # ---- 공통 입력 ----
+        # ---------- 공통 입력 ----------
         c = st.columns([1,1,1,1])
         with c[0]:
-            session_type = st.radio("구분", ["개인","그룹"], horizontal=True)
+            session_type = st.radio("구분", ["개인","그룹"], horizontal=True, key="sess_type")
         with c[1]:
             if session_type == "개인":
-                mname = st.selectbox("멤버", members["이름"].tolist())
-                auto_site = members.loc[members["이름"]==mname,"기본지점"].iloc[0] if mname in members["이름"].values else "F"
+                mname = st.selectbox("멤버", members["이름"].tolist(), key="sess_member")
+                auto_site = "F"
+                if mname in members["이름"].values:
+                    # 기본지점 or 지점 컬럼 사용
+                    if "기본지점" in members.columns and members.loc[members["이름"]==mname,"기본지점"].iloc[0]:
+                        auto_site = members.loc[members["이름"]==mname,"기본지점"].iloc[0]
+                    elif "지점" in members.columns and members.loc[members["이름"]==mname,"지점"].iloc[0]:
+                        auto_site = members.loc[members["이름"]==mname,"지점"].iloc[0]
                 site = st.selectbox("지점", ["F","R","V"], index=["F","R","V"].index(auto_site))
             else:
                 mname = ""
-                site = st.selectbox("지점", ["F","R","V"])
+                site = st.selectbox("지점", ["F","R","V"], key="sess_site_group")
         with c[2]:
-            level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"])
+            level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"], key="sess_level")
         with c[3]:
-            equip = st.selectbox("기구", ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"])
+            equip = st.selectbox("기구", ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"], key="sess_equip")
 
         # 그룹 인원 / 개인은 1
-        headcount = st.number_input("인원(그룹)", 1, 10, 1 if session_type=="개인" else 2, 1,
-                                    disabled=(session_type=="개인"))
+        headcount = st.number_input(
+            "인원(그룹)",
+            min_value=1, max_value=10,
+            value=(1 if session_type=="개인" else 2),
+            step=1,
+            disabled=(session_type=="개인"),
+            key="sess_headcount"
+        )
 
-        # 동작 선택(개인일 때만) + 자유 입력
-        extra_cols = st.columns([2,1])
-        # 장비에 맞춰 동작 후보 필터링
-        per_moves = []
-        for cat, moves in load_ex_db().items():
-            # 장비 기반 간단 매칭
-            if session_type=="개인":
-                want = equip.lower()
-                ok = (want in cat.lower()) or (("mat" in want) and ("mat" in cat.lower())) or ("기타" in cat.lower())
+        # ---------- 장비별 동작 후보 필터링(개인만) + 자유 입력 ----------
+        add_free = ""
+        chosen = []
+        if session_type == "개인":
+            per_moves = []
+            exdb = load_ex_db()
+            want = equip.lower()  # 장비 키워드
+            for cat, moves in exdb.items():
+                cat_l = cat.lower()
+                ok = (
+                    (want in cat_l) or
+                    ("mat" in want and "mat" in cat_l) or
+                    ("기타" in cat_l) or
+                    (equip == "Barrel/Spine" and ("barrel" in cat_l or "spine" in cat_l))
+                )
                 if ok:
                     per_moves += [f"{cat} · {m}" for m in moves]
 
-        chosen = []
-        if session_type == "개인":
-            with extra_cols[0]:
-                chosen = st.multiselect("운동 동작(복수)", sorted(per_moves), key="per_moves")
-            with extra_cols[1]:
-                add_free = st.text_input("추가 동작(,로 구분)", placeholder="예: Side bends, Mermaid")
-        else:
-            add_free = ""  # 그룹은 자유동작만 메모로 남김
+            cols_move = st.columns([2,1])
+            with cols_move[0]:
+                chosen = st.multiselect("운동 동작(복수 선택)", sorted(per_moves), key="sess_moves")
+            with cols_move[1]:
+                add_free = st.text_input("추가 동작(,로 구분)", placeholder="예: Side bends, Mermaid", key="sess_addfree")
 
-        # 특이/숙제/취소
-        memo = st.text_area("특이사항", height=80)
-        homework = st.text_area("숙제(개인)", height=60, disabled=(session_type=="그룹"))
-        cancel = st.checkbox("취소")
-        reason = st.text_input("취소 사유(선택)")
+        # ---------- 특이/숙제/취소 ----------
+        memo = st.text_area("특이사항", height=80, key="sess_memo")
+        homework = st.text_area("숙제(개인)", height=60, disabled=(session_type=="그룹"), key="sess_homework")
+        cancel = st.checkbox("취소", key="sess_cancel")
+        reason = st.text_input("취소 사유(선택)", key="sess_reason")
+        minutes = st.number_input("수업 분", 10, 180, 50, 5, key="sess_minutes")
 
-        minutes = st.number_input("수업 분", 10, 180, 50, 5)
-
-        # 저장 버튼
-        if st.button("세션 저장", use_container_width=True):
-            # 사용자 추가 동작 DB 반영 (개인일 때만)
+        # ---------- 저장 ----------
+        if st.button("세션 저장", use_container_width=True, key="sess_save_btn"):
+            # 사용자 추가 동작 DB 반영(개인일 때만)
             if session_type=="개인" and add_free.strip():
                 new_moves = [x.strip() for x in add_free.split(",") if x.strip()]
-                exdb = load_ex_db()
-                exdb.setdefault("기타", [])
+                exdb2 = load_ex_db()
+                exdb2.setdefault("기타", [])
                 for nm in new_moves:
-                    if nm not in exdb["기타"]:
-                        exdb["기타"].append(nm)
-                save_ex_db(exdb)
+                    if nm not in exdb2["기타"]:
+                        exdb2["기타"].append(nm)
+                save_ex_db(exdb2)
 
-            # 페이 계산 (사이트/개인/그룹 규칙)
+            # 페이 계산
             gross, net = calc_pay(site, session_type, int(headcount), None)
 
             # 저장 레코드
@@ -485,7 +514,7 @@ elif st.session_state.page == "session":
                 "기구": equip,
                 "동작(리스트)": "; ".join(chosen) if session_type=="개인" else "",
                 "추가동작": add_free if session_type=="개인" else "",
-                "메모": memo if session_type=="그룹" else (memo + (f"\n[숙제] {homework}" if homework.strip() else "")),
+                "메모": (memo if session_type=="그룹" else (memo + (f"\n[숙제] {homework}" if homework.strip() else ""))),
                 "취소": bool(cancel),
                 "사유": reason,
                 "분": int(minutes),
@@ -493,13 +522,10 @@ elif st.session_state.page == "session":
                 "페이(실수령)": float(net)
             }])
 
-            # 세션 저장
-            tmp = pd.concat([sessions, row], ignore_index=True)
-            save_sessions(tmp)
-            # 세션 상태 갱신
-            st.session_state["_reload_sessions"] = True
+            sessions_new = pd.concat([sessions, row], ignore_index=True)
+            save_sessions(sessions_new)
 
-            # 개인 & 취소 아님 → 남은횟수 차감 (과거/미래 상관없이)
+            # 개인 & 취소 아님 → 남은횟수 차감
             if session_type=="개인" and mname and not cancel and (mname in members["이름"].values):
                 idx = members.index[members["이름"]==mname][0]
                 remain = max(0, int(float(members.loc[idx,"남은횟수"] or 0)) - 1)
@@ -508,19 +534,17 @@ elif st.session_state.page == "session":
 
             st.success("세션 저장 완료!")
 
-        # 최근 세션 목록 (과거도 함께 보기)
+        # ---------- 최근 세션 표시 ----------
         st.subheader("최근 세션")
-        view = load_sessions()  # 방금 저장 반영
+        view = load_sessions()
         if view.empty:
             big_info("세션 데이터가 없습니다.")
         else:
             view = view.sort_values("날짜", ascending=False).copy()
-            # 화면 표시는 과거/미래 모두 포함
             hide_cols = ["페이(총)","페이(실수령)"]
             show_cols = [c for c in view.columns if c not in hide_cols]
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view[show_cols], use_container_width=True, hide_index=True)
-
 
 # ─────────────────────────────────────────────────────────────────────
 # 페이지: 멤버
@@ -775,6 +799,7 @@ elif st.session_state.page == "cherry":
             v = df.sort_values("날짜", ascending=False)
             v["날짜"] = pd.to_datetime(v["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(v, use_container_width=True, hide_index=True)
+
 
 
 
