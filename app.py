@@ -199,7 +199,8 @@ def calc_pay(site: str, session_type: str, headcount: int) -> Tuple[float,float]
 
 # =============================================================================
 # =============================================================================
-# 사이드바 메뉴 (깔끔하게 단일 선택, 불릿/중복 제거)
+# =============================================================================
+# 사이드바 메뉴 (불릿 제거, 깔끔하게 버튼 형식)
 
 if "page" not in st.session_state:
     st.session_state.page = "schedule"   # 첫 페이지: 스케줄
@@ -212,20 +213,41 @@ MENU = {
     "🍒": "cherry"
 }
 
-# 사이드바 제목
 st.sidebar.markdown("## 메뉴")
 
-# 라디오 버튼으로 단일 선택
-choice = st.sidebar.radio(
-    label="메뉴 선택",
-    options=list(MENU.keys()),
-    index=0,
-    label_visibility="collapsed"   # "메뉴 선택" 글자 숨김
-)
+# CSS로 버튼 스타일 지정
+st.markdown("""
+    <style>
+    .sidebar-button {
+        display:block;
+        font-size:20px;
+        padding:8px 6px;
+        margin-bottom:4px;
+        text-align:left;
+        background-color:transparent;
+        border:none;
+        cursor:pointer;
+    }
+    .sidebar-button:hover {
+        font-weight:700;
+        color:#FF4B4B;
+    }
+    .active {
+        font-weight:800;
+        color:#FF4B4B;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# 현재 선택한 메뉴를 세션 상태에 저장
-st.session_state.page = MENU[choice]
-
+# 메뉴 버튼 만들기
+for label, key in MENU.items():
+    cls = "active" if st.session_state.page == key else ""
+    if st.sidebar.button(label, key=f"_menu_{key}"):
+        st.session_state.page = key
+    st.sidebar.markdown(
+        f'<div class="sidebar-button {cls}">{label}</div>',
+        unsafe_allow_html=True
+    )
 # =============================================================================
 # 페이지: 스케줄
 # =============================================================================
@@ -693,4 +715,5 @@ elif st.session_state.page == "cherry":
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             view["지점"] = view["지점"].map(SITE_LABEL).fillna(view["지점"])
             st.dataframe(view, use_container_width=True, hide_index=True)
+
 
