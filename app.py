@@ -593,134 +593,62 @@ if st.session_state["page"] == "schedule":
 
 # ======================================
 # 페이지: 세션
-# ======================================
-elif st.session_state["page"] == "session":
+# -------------------------
+# ✍️ 세션 탭
+# -------------------------
+elif menu == "세션":
     st.subheader("✍️ 세션 기록")
 
-    # 선택 유지 저장소(기구별 동작 멀티선택 유지)
-    if "move_choices" not in st.session_state:
-        st.session_state["move_choices"] = {}  # {equip: [moves,…]}
-    if "equip_selected" not in st.session_state:
-        st.session_state["equip_selected"] = []
+    # 멤버 선택
+    member = st.selectbox("멤버 선택", members["이름"].tolist(), key="session_member")
 
-    # 최근 자동 생성(출석) 세션 중 내용 비어있는 것 빠르게 편집
-    st.markdown("##### 🔧 최근 자동 생성 세션 편집")
-    pending = sessions[
-        (sessions["동작(리스트)"]=="") & (sessions["취소"]==False)
-    ].sort_values("날짜", ascending=False).head(10)
-    pick = None
-    if not pending.empty:
-        pick = st.selectbox(
-            "편집할 세션 선택",
-            options=[f'{row["id"]} · {row["이름"] or "(그룹)"} · {SITE_KR.get(row["지점"],row["지점"])} · {pd.to_datetime(row["날짜"]).strftime("%m/%d %H:%M")}'
-                     for _,row in pending.iterrows()]
-        )
-    else:
-        st.caption("편집할 자동 생성 세션이 없습니다.")
+    # 기구 선택 (다중)
+    equip_sel = st.multiselect(
+        "기구 선택",
+        ["Mat", "Reformer", "Cadillac", "Wunda chair", "Barrel/Spine", "Small Barrel",
+         "Spine corrector", "Electric chair", "Pedi-pul", "Magic circle", "Arm chair",
+         "Foam/Toe/Neck", "기타"],
+        key="session_equips"
+    )
 
-    # 자유 생성/편집(필요시)
-    st.markdown("##### 🧾 새 세션 추가 또는 선택한 세션 편집")
-    c = st.columns([1,1,1,1])
-    with c[0]:
-        day = st.date_input("날짜", value=date.today())
-    with c[1]:
-        tme = st.time_input("시간", value=datetime.now().time().replace(second=0, microsecond=0))
-    with c[2]:
-        stype = st.radio("구분", ["개인","그룹"], horizontal=True)
-    with c[3]:
-        minutes = st.number_input("수업 분", 10, 180, 50, 5)
+    # 동작 선택 (기구별 통합 목록에서 복수 선택 가능, 유지됨)
+    chosen_moves = st.multiselect(
+        "운동 동작(복수 선택 가능)", 
+        options=sorted(per_moves), 
+        key="session_moves"
+    )
 
-    c2 = st.columns([1,1,1])
-    with c2[0]:
-        if stype=="개인":
-            mname = st.selectbox("회원", members["이름"].tolist() if not members.empty else [])
-            auto_site = members.loc[members["이름"]==mname, "기본지점"].iloc[0] if mname and (mname in members["이름"].values) else "F"
-            site = st.selectbox("지점", SITES, index=SITES.index(auto_site))
+    # 추가 입력란
+    add_free  = st.text_input("추가 동작(콤마 , 로 구분)", key="session_add_free")
+    spec_note = st.text_input("특이사항", key="session_spec")
+    homework  = st.text_input("숙제", key="session_homework")
+    memo      = st.text_area("메모", height=60, key="session_memo")
+
+    # 세션 저장 버튼
+    if st.button("세션 기록 저장", key="session_save_btn"):
+        if not member:
+            st.warning("멤버를 선택하세요.")
         else:
-            mname = ""
-            site = st.selectbox("지점", SITES)
-    with c2[1]:
-        level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"])
-    with c2[2]:
-        headcount = st.number_input("인원(그룹)", 1, 20, 1 if stype=="개인" else 2, disabled=(stype=="개인"))
-
-    # 다중 기구 선택
-    st.markdown("###### 기구 선택(복수)")
-    equip_multi = st.multiselect("기구", options=list(ex_db.keys()), default=st.session_state["equip_selected"])
-    st.session_state["equip_selected"] = equip_multi
-
-    # 기구별 동작 멀티선택(선택 유지)
-    selected_moves_total: List[str] = []
-    for eq in equip_multi:
-        prev_sel = st.session_state["move_choices"].get(eq, [])
-        options = ex_db.get(eq, [])
-        chosen = st.multiselect(f"동작 - {eq}", options=options, default=prev_sel, key=f"mv_{eq}")
-        st.session_state["move_choices"][eq] = chosen
-        selected_moves_total.extend([f"{eq} · {m}" for m in chosen])
-
-    add_free = st.text_input("추가 동작(콤마로 구분)", value="")
-    special   = st.text_input("특이사항", value="")
-    homework  = st.text_input("숙제", value="")
-    
-
-    col_btn = st.columns(2)
-    with col_btn[0]:
-        if st.button("세션 저장/추가", use_container_width=True):
-            when = datetime.combine(day, tme)
-            # 새 세션 저장
-            gross, net = calc_pay(site, stype, int(headcount), mname, members)
-            row = pd.DataFrame([{
-                "id": ensure_id(sessions),
-                "날짜": when,
-                "지점": site,
-                "구분": stype,
-                "이름": mname if stype=="개인" else "",
-                "인원": int(headcount) if stype=="그룹" else 1,
-                "레벨": level,
-                "기구": ", ".join(equip_multi),
-                "동작(리스트)": "; ".join(selected_moves_total),
+            new_session = {
+                "날짜": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "멤버": member,
+                "기구": ", ".join(equip_sel),
+                "동작": ", ".join(chosen_moves),
                 "추가동작": add_free,
-                "특이사항": special,
+                "특이사항": spec_note,
                 "숙제": homework,
                 "메모": memo,
-                "취소": False,
-                "사유": "",
-                "분": int(minutes),
-                "온더하우스": False,
-                "페이(총)": float(gross),
-                "페이(실수령)": float(net)
-            }])
-            sessions[:] = pd.concat([sessions, row], ignore_index=True)
-            save_sessions(sessions)
-            st.success("세션이 저장되었습니다.")
+                "페이": 0   # 숨길 컬럼, 내부 기록용
+            }
+            sessions = pd.concat([sessions, pd.DataFrame([new_session])], ignore_index=True)
+            save_csv(sessions, "sessions.csv")
+            st.success("✅ 세션 기록이 저장되었습니다.")
 
-    with col_btn[1]:
-        if pick and st.button("선택한 자동 생성 세션에 반영", use_container_width=True):
-            sel_id = pick.split("·")[0].strip()  # "id · ..."
-            idx = sessions.index[sessions["id"].astype(str)==sel_id]
-            if len(idx)>0:
-                i = idx[0]
-                sessions.loc[i,"레벨"]         = level
-                sessions.loc[i,"기구"]          = ", ".join(equip_multi)
-                sessions.loc[i,"동작(리스트)"]   = "; ".join(selected_moves_total)
-                sessions.loc[i,"추가동작"]       = add_free
-                sessions.loc[i,"특이사항"]       = special
-                sessions.loc[i,"숙제"]           = homework
-                sessions.loc[i,"메모"]           = memo
-                sessions.loc[i,"분"]             = int(minutes)
-                save_sessions(sessions)
-                st.success("자동 생성 세션이 업데이트되었습니다.")
-
-    st.markdown("##### 🔎 최근 세션")
-    if sessions.empty:
-        st.info("세션 데이터가 없습니다.")
-    else:
-        view = sessions.sort_values("날짜", ascending=False).copy()
-        view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
-        hide_cols = ["페이(총)","페이(실수령)"]
-        show_cols = [c for c in view.columns if c not in hide_cols]
-        st.dataframe(view[show_cols], use_container_width=True, hide_index=True)
-
+    # 최근 세션 기록 표시 (페이 컬럼은 숨김)
+    if not sessions.empty:
+        st.markdown("#### 📑 최근 세션 기록")
+        show_cols = [c for c in sessions.columns if c != "페이"]
+        st.dataframe(sessions[show_cols].tail(10).sort_index(ascending=False), use_container_width=True)
 # ======================================
 # 페이지: 멤버
 # ======================================
@@ -930,6 +858,7 @@ elif st.session_state["page"] == "cherry":
             sch_cnt  = pivot_counts(sch_all[["YM","구분","지점"]], "스케줄(전체)")
             out = pd.concat([sess_cnt, sch_cnt], ignore_index=True).sort_values(["YM","구분","출처"], ascending=[False,True,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
