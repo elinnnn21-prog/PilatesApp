@@ -198,35 +198,33 @@ def calc_pay(site: str, session_type: str, headcount: int) -> Tuple[float,float]
     return visit_net, visit_net
 
 # =============================================================================
-# 사이드바: 사용자 정의 메뉴 (불렛 X, 글자 크게)
 # =============================================================================
-st.markdown("""
-    <style>
-    .sidebar-menu a {display:block; font-size:20px; text-decoration:none; padding:8px 6px;}
-    .sidebar-menu a:hover {font-weight:700; color:#FF4B4B;}
-    .sidebar-menu .active {font-weight:800;}
-    </style>
-""", unsafe_allow_html=True)
+# 사이드바 메뉴 (깔끔하게 단일 선택, 불릿/중복 제거)
 
 if "page" not in st.session_state:
     st.session_state.page = "schedule"   # 첫 페이지: 스케줄
 
+MENU = {
+    "📅 스케줄": "schedule",
+    "✍️ 세션": "session",
+    "👥 멤버": "member",
+    "📋 리포트": "report",
+    "🍒": "cherry"
+}
+
+# 사이드바 제목
 st.sidebar.markdown("## 메뉴")
-def menu_link(label: str, key: str, emoji_only: bool = False):
-    show = label if not emoji_only else label.split()[0]
-    cls = "active" if st.session_state.page == key else ""
-    clicked = st.sidebar.button(show, key=f"_menu_{key}")
-    st.sidebar.markdown(f'<div class="sidebar-menu"><a class="{cls}">{show}</a></div>', unsafe_allow_html=True)
-    if clicked:
-        st.session_state.page = key
 
-menu_link("📅 스케줄", "schedule")
-menu_link("✍️ 세션",   "session")
-menu_link("👥 멤버",    "member")
-menu_link("📋 리포트", "report")
-menu_link("🍒",       "cherry", emoji_only=True)
+# 라디오 버튼으로 단일 선택
+choice = st.sidebar.radio(
+    label="메뉴 선택",
+    options=list(MENU.keys()),
+    index=0,
+    label_visibility="collapsed"   # "메뉴 선택" 글자 숨김
+)
 
-st.write("")  # 약간의 여백
+# 현재 선택한 메뉴를 세션 상태에 저장
+st.session_state.page = MENU[choice]
 
 # =============================================================================
 # 페이지: 스케줄
@@ -695,3 +693,4 @@ elif st.session_state.page == "cherry":
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             view["지점"] = view["지점"].map(SITE_LABEL).fillna(view["지점"])
             st.dataframe(view, use_container_width=True, hide_index=True)
+
