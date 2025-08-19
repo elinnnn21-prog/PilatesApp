@@ -23,7 +23,7 @@ CHERRY_PIN = st.secrets.get("CHERRY_PW", "2974")
 
 # 지점 코드/라벨/색상
 SITES = ["F", "R", "V"]  # F: 플로우, R: 리유, V: 방문
-SITE_LABEL = {"F":"F (플로우)", "R":"R (리유)", "V":"V (방문)"}
+SITE_LABEL = {"F":"F", "R":"R", "V":"V"}
 SITE_COLOR = {"F":"#d9f0ff", "R":"#eeeeee", "V":"#e9fbe9"}
 
 # -----------------------------
@@ -705,3 +705,4 @@ elif st.session_state.page == "cherry":
             detail = df.sort_values("날짜", ascending=False).copy()
             detail["날짜"] = pd.to_datetime(detail["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(detail, use_container_width=True, hide_index=True)
+
