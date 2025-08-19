@@ -502,6 +502,31 @@ if st.session_state.page == "schedule":
             with colE:
                 st.write("")  # 여백
 
+            with colE:
+                st.write("")  # 여백
+
+    # ---- (스케줄 리스트 그린 직후) iCal 내보내기 ----
+    st.divider()
+    st.subheader("📤 iCal(.ics) 내보내기")
+
+    exclude_cancel = st.checkbox("취소된 일정 제외", value=True)
+    export_df = v.copy()  # 👈 지금 화면에 보이는 일정(v) 기준
+    if "상태" in export_df.columns and exclude_cancel:
+        export_df = export_df[~export_df["상태"].astype(str).str.contains("취소")]
+
+    if export_df.empty:
+        st.caption("내보낼 일정이 없습니다.")
+    else:
+        ics_bytes = build_ics_from_df(export_df)
+        filename = f"schedule_{view_mode}_{base.strftime('%Y%m%d')}.ics"
+        st.download_button(
+            "⬇️ iCal 파일 다운로드",
+            data=ics_bytes,
+            file_name=filename,
+            mime="text/calendar",
+            use_container_width=True
+        )
+        st.caption("받은 .ics 파일을 아이폰/구글 캘린더에 추가하면 일정이 달력에 들어가요.")
 # ==============================
 # ✍️ 세션 (수동기록/수정)
 # ==============================
@@ -775,5 +800,6 @@ elif st.session_state.page == "cherry":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
 
 
