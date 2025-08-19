@@ -333,11 +333,10 @@ schedule = load_schedule()
 ex_db    = load_ex_db()
 
 # ======================================
-# 사이드바 메뉴(버튼 UI)
-# ======================================
-# ===== 사이드바: 버튼형 메뉴(중복 없이 한 줄만) =====
+# ===== 사이드바: 항상 버튼(활성도 클릭 가능) =====
 st.markdown("""
 <style>
+/* 사이드바 버튼 공통 스타일(네모 배경 제거) */
 div[data-testid="stSidebar"] button[kind="secondary"]{
   background: transparent !important;
   border: none !important;
@@ -346,26 +345,45 @@ div[data-testid="stSidebar"] button[kind="secondary"]{
   padding: 6px 4px !important;
   font-size: 18px !important;
 }
-div[data-testid="stSidebar"] .active-label{
-  font-weight: 800 !important; color:#ff4b4b !important;
-  padding: 6px 4px !important; font-size: 18px !important;
+/* 활성 버튼은 빨간색+굵게 */
+div[data-testid="stSidebar"] button[kind="secondary"].active{
+  color:#ff4b4b !important; font-weight:800 !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 if "page" not in st.session_state:
-    st.session_state["page"] = "schedule"
+    st.session_state["page"] = "schedule"  # 첫 페이지
 
 def menu_btn(label: str, key: str, emoji_only: bool=False):
     show = label if not emoji_only else label.split()[0]
-    active = (st.session_state["page"] == key)
-    if active:
-        # 활성일 땐 텍스트만 1줄
-        st.sidebar.markdown(f'<div class="active-label">{show}</div>', unsafe_allow_html=True)
-    else:
-        # 비활성일 땐 버튼만 1개
-        if st.sidebar.button(show, key=f"menu_{key}"):
-            st.session_state["page"] = key
+    # 버튼 렌더
+    clicked = st.sidebar.button(show, key=f"menu_{key}")
+    # 렌더 후, 방금 그 버튼을 '활성 스타일'로 토글
+    # (Streamlit은 렌더 시점 클래스를 못 바꾸니 같은 위치에 한 번 더 찍어 덮어씌우기)
+    import streamlit as _st
+    from uuid import uuid4 as _uuid
+    _ph = st.sidebar.empty()
+    # 현재 활성 여부
+    is_active = (st.session_state["page"] == key)
+    # 동일한 버튼을 다시 그리되 active 클래스를 추가
+    btn_id = f"menu_{key}"
+    _ph.markdown(
+        f"""
+        <script>
+        const btns = parent.document.querySelectorAll('button[kind="secondary"]');
+        btns.forEach(b => {{
+          if (b.innerText.trim() === `{show}`) {{
+            b.classList.remove('active');
+            {"b.classList.add('active');" if is_active else ""}
+          }}
+        }});
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
+    if clicked:
+        st.session_state["page"] = key
 
 st.sidebar.markdown("### 메뉴")
 menu_btn("📅 스케줄", "schedule")
@@ -912,4 +930,5 @@ elif st.session_state["page"] == "cherry":
             sch_cnt  = pivot_counts(sch_all[["YM","구분","지점"]], "스케줄(전체)")
             out = pd.concat([sess_cnt, sch_cnt], ignore_index=True).sort_values(["YM","구분","출처"], ascending=[False,True,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
