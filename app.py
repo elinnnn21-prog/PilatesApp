@@ -10,8 +10,8 @@ import streamlit as st
 
 # ─────────────────────────────────────────────────────────────────────
 # 기본 셋업
-# ─────────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Pilates Manager", page_icon="✨", layout="wide")
+# ───────────브라우저 아이콘
+st.set_page_config(page_title="Pilates Manager", page_icon="✨", layout="wide") 
 
 
 DATA_DIR     = Path(".")
@@ -665,4 +665,5 @@ elif st.session_state.page == "cherry":
             v = df.sort_values("날짜", ascending=False)
             v["날짜"] = pd.to_datetime(v["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(v, use_container_width=True, hide_index=True)
+
 
