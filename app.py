@@ -76,6 +76,75 @@ def ensure_files():
     if not EX_JSON.exists():
         pd.Series(EX_DB_DEFAULT).to_json(EX_JSON, force_ascii=False)
 
+# -------- iCal(ICS) 내보내기 헬퍼 --------
+from datetime import timezone
+
+def _fmt_ics_dt(dt):
+    # Asia/Seoul 기준 '떠있는 로컬시간'으로 작성 (대부분의 캘린더에서 정상 인식)
+    return dt.strftime("%Y%m%dT%H%M%S")
+
+def build_ics_from_df(df: pd.DataFrame, default_minutes: int = 50) -> bytes:
+    """
+    보이는 스케줄 DataFrame(df) → .ics 바이너리로 변환
+    - 취소건은 df에서 미리 제외해서 넣어 주세요.
+    - 종료시간은 '분' 컬럼이 있으면 반영, 없으면 default_minutes 사용
+    """
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//PilatesApp//Schedule Export//KR",
+        "CALSCALE:GREGORIAN",
+    ]
+    now_utc = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    for _, r in df.iterrows():
+        try:
+            start = pd.to_datetime(r["날짜"])
+        except Exception:
+            continue
+        minutes = 0
+        try:
+            minutes = int(float(r.get("분", default_minutes) or default_minutes))
+        except Exception:
+            minutes = default_minutes
+        end = start + timedelta(minutes=minutes)
+
+        title_name = r.get("이름", "") or "(그룹)"
+        kind = r.get("구분", "")
+        site = r.get("지점", "")
+        level = r.get("레벨", "")
+        equip = r.get("기구", "")
+        moves = (r.get("동작(리스트)", "") or "").strip()
+        extra = (r.get("추가동작","") or "").strip()
+        memo  = (r.get("메모","") or "").strip()
+
+        summary = f"{title_name} ({kind}) [{site}]"
+        desc_parts = []
+        if level: desc_parts.append(f"레벨: {level}")
+        if equip: desc_parts.append(f"기구: {equip}")
+        if moves: desc_parts.append(f"동작: {moves}")
+        if extra: desc_parts.append(f"추가동작: {extra}")
+        if memo:  desc_parts.append(f"메모: {memo}")
+        description = "\\n".join(desc_parts)  # ICS는 줄바꿈에 \n 대신 \\n
+
+        uid = f"{int(start.timestamp())}-{title_name.replace(' ','')}-{kind}@pilatesapp"
+
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{now_utc}",
+            f"DTSTART:{_fmt_ics_dt(start)}",
+            f"DTEND:{_fmt_ics_dt(end)}",
+            f"SUMMARY:{summary}",
+            f"LOCATION:{site}",
+            f"DESCRIPTION:{description}",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    content = "\r\n".join(lines) + "\r\n"
+    return content.encode("utf-8")
+    
     # 스키마 업그레이드(누락 컬럼 자동 추가)
     def upgrade(csv_path: Path, must_cols: List[str]):
         try:
@@ -706,3 +775,4 @@ elif st.session_state.page == "cherry":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
