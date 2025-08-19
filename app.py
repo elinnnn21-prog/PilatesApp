@@ -24,6 +24,25 @@ SITES      = ["F", "R", "V"]  # Flow / Ryu / Visit
 SITE_KR    = {"F": "플로우", "R": "리유", "V": "방문"}
 SITE_COLOR = {"F": "#d9f0ff", "R": "#eeeeee", "V": "#e9fbe9"}
 
+# ---- NAV 기본값 (버튼 네비 사용 시) ----
+if "page" not in st.session_state:
+    st.session_state.page = "schedule"   # 첫 페이지는 스케줄
+
+# ---- menu 호환(옛 코드용) ----
+# st.session_state.page 값 -> 한국어 라벨로 매핑해서 menu 변수에 넣어줌
+_key2label = {
+    "schedule": "스케줄",
+    "session":  "세션",
+    "member":   "멤버",
+    "report":   "리포트",
+    "cherry":   "🍒",
+}
+# 혹시 버튼 콜백에서 page_label을 직접 저장하는 버전도 대비
+menu = st.session_state.get("page_label")
+if not menu:
+    menu = _key2label.get(st.session_state.get("page", "schedule"), "스케줄")
+    st.session_state["page_label"] = menu
+    
 # ---------------- 기본 동작 DB(초기) ----------------
 EX_DB_DEFAULT: Dict[str, List[str]] = {
     "Mat": [
@@ -948,6 +967,7 @@ elif st.session_state["page"] == "cherry":
             sch_cnt  = pivot_counts(sch_all[["YM","구분","지점"]], "스케줄(전체)")
             out = pd.concat([sess_cnt, sch_cnt], ignore_index=True).sort_values(["YM","구분","출처"], ascending=[False,True,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
