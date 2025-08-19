@@ -363,7 +363,7 @@ if st.session_state.page == "schedule":
     with cc[0]:
         headcount = st.number_input("인원(그룹)", 1, 10, 1 if stype=="개인" else 2, 1, disabled=(stype=="개인"))
     with cc[1]:
-        onth = st.checkbox("✨ On the house(무료)")  # 스케줄에도 표시/전파
+        onth = st.checkbox("✨ On the house")  # 스케줄에도 표시/전파
     with cc[2]:
         spec_note = st.text_input("특이사항", value="")
     with cc[3]:
@@ -535,7 +535,7 @@ elif st.session_state.page == "session":
     with c2[2]:
         headcount = st.number_input("인원(그룹)", 1, 10, 2 if session_type=="그룹" else 1, 1, disabled=(session_type=="개인"))
     with c2[3]:
-        free_onhouse = st.checkbox("✨ On the house(무료)")
+        free_onhouse = st.checkbox("✨ On the house")
 
     # 동작 멀티(개인만), 그룹은 특이만
     chosen = []
@@ -775,4 +775,5 @@ elif st.session_state.page == "cherry":
             view = df.sort_values("날짜", ascending=False)
             view["날짜"] = pd.to_datetime(view["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(view, use_container_width=True, hide_index=True)
+
 
