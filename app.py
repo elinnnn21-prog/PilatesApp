@@ -395,71 +395,80 @@ st.sidebar.markdown("---")
 
 # ======================================
 # 페이지: 스케줄
-# ======================================
-if st.session_state["page"] == "schedule":
+# 📅 스케줄
+# ==============================
+elif menu == "스케줄":
     st.subheader("📅 스케줄")
 
-    # 보기 전환 / 기준일
-    cc = st.columns([1,1,2,1])
-    with cc[0]:
-        view_mode = st.radio("보기", ["일","주","월"], horizontal=True, index=1, label_visibility="collapsed")
-    with cc[1]:
-        base = st.date_input("기준", value=date.today(), label_visibility="collapsed")
-
-    base_dt = datetime.combine(base, time.min)
-    if view_mode=="일":
-        start, end = base_dt, base_dt + timedelta(days=1)
-    elif view_mode=="주":
-        start = base_dt - timedelta(days=base_dt.weekday())
-        end   = start + timedelta(days=7)
-    else:
-        start = base_dt.replace(day=1)
-        end   = (start + pd.offsets.MonthEnd(1)).to_pydatetime() + timedelta(days=1)
-
-    # 예약 추가
-    st.markdown("#### ✨ 예약 추가")
-    cols = st.columns([1,1,1,1,1,1])
-    with cols[0]:
-        sdate = st.date_input("날짜", value=base)
-    with cols[1]:
-        stime = st.time_input("시간", value=datetime.now().time().replace(second=0, microsecond=0))
-    with cols[2]:
-        stype = st.radio("구분", ["개인","그룹"], horizontal=True)
-    with cols[3]:
-        if stype=="개인":
-            mname = st.selectbox("회원(개인)", members["이름"].tolist() if not members.empty else [])
-            default_site = members.loc[members["이름"]==mname, "기본지점"].iloc[0] if mname and (mname in members["이름"].values) else "F"
-        else:
-            mname = ""
-            default_site = "F"
-        site = st.selectbox("지점", SITES, index=SITES.index(default_site))
-    with cols[4]:
-        level = st.selectbox("레벨", ["Basic","Intermediate","Advanced","Mixed","NA"])
-    with cols[5]:
-        equip = st.selectbox("기구", list(ex_db.keys()))
-
-    cols2 = st.columns([1,1,2,1])
-    with cols2[0]:
-        headcount = st.number_input("인원(그룹)", 1, 20, 1 if stype=="개인" else 2, disabled=(stype=="개인"))
-    with cols2[1]:
-        onth = st.checkbox("On the house(✨)")
-    with cols2[2]:
-        spec_note = st.text_input("메모(선택)", value="")
-    with cols2[3]:
+    # 보기/기간 선택
+    vcols = st.columns([1, 1, 2, 1])
+    with vcols[0]:
+        view_mode = st.radio("보기", ["일", "주", "월"], horizontal=True, index=1,
+                             key="sched_view_mode", label_visibility="collapsed")
+    with vcols[1]:
+        base = st.date_input("기준", value=date.today(), key="sched_base", label_visibility="collapsed")
+    with vcols[2]:
+        pass
+    with vcols[3]:
         pass
 
-    if st.button("예약 추가", use_container_width=True):
+    base_dt = datetime.combine(base, time.min)
+    if view_mode == "일":
+        start, end = base_dt, base_dt + timedelta(days=1)
+    elif view_mode == "주":
+        start = base_dt - timedelta(days=base_dt.weekday())
+        end = start + timedelta(days=7)
+    else:
+        start = base_dt.replace(day=1)
+        end = (start + pd.offsets.MonthEnd(1)).to_pydatetime() + timedelta(days=1)
+
+    # --------------------------
+    # ✨ 예약 등록 (간소화 버전)
+    # --------------------------
+    st.markdown("#### ✨ 예약 등록")
+    c = st.columns([1, 1, 1, 2, 1])
+    with c[0]:
+        sdate = st.date_input("날짜", value=base, key="sched_date")
+    with c[1]:
+        stime = st.time_input("시간", value=datetime.now().time().replace(second=0, microsecond=0),
+                              key="sched_time")
+    with c[2]:
+        stype = st.radio("구분", ["개인", "그룹"], horizontal=True, key="sched_type")
+
+    # 개인이면 멤버 선택 → 지점 자동(F/R/V). 그룹이면 지점 직접 선택 + 인원.
+    with c[3]:
+        if stype == "개인":
+            mname = st.selectbox("멤버", members["이름"].tolist() if not members.empty else [],
+                                 key="sched_person_member")
+            # 기본 지점 자동(F/R/V)
+            if mname and (mname in members["이름"].values):
+                auto_site = members.loc[members["이름"] == mname, "기본지점"].iloc[0] or "F"
+            else:
+                auto_site = "F"
+            st.info(f"자동 지점: **{SITE_LABEL.get(auto_site, auto_site)}**")
+            site = auto_site
+            headcount = 1
+        else:
+            mname = ""
+            site_label = st.selectbox("지점", [SITE_LABEL[s] for s in SITES],
+                                      index=0, key="sched_group_site")
+            site = site_label.split()[0]
+            headcount = st.number_input("인원(그룹)", 1, 20, 2, 1, key="sched_group_head")
+
+    with c[4]:
+        onth = st.checkbox("✨ On the house", key="sched_onth")
+        memo = st.text_input("메모(선택)", key="sched_memo")
+
+    if st.button("예약 추가", use_container_width=True, key="sched_add_btn"):
         when = datetime.combine(sdate, stime)
         row = pd.DataFrame([{
             "id": ensure_id(schedule),
             "날짜": when,
             "지점": site,
             "구분": stype,
-            "이름": mname if stype=="개인" else "",
-            "인원": int(headcount) if stype=="그룹" else 1,
-            "레벨": level,
-            "기구": equip,
-            "특이사항": spec_note,
+            "이름": mname if stype == "개인" else "",
+            "인원": int(headcount),
+            "메모": memo,
             "온더하우스": bool(onth),
             "상태": "예약됨"
         }])
@@ -467,58 +476,81 @@ if st.session_state["page"] == "schedule":
         save_schedule(schedule)
         st.success("예약이 추가되었습니다.")
 
-    # 기간 표시
+    # --------------------------
+    # 기간 뷰 (리스트 + 상태 버튼)
+    # --------------------------
     st.markdown("#### 📋 일정")
-    v = schedule[(schedule["날짜"]>=start) & (schedule["날짜"]<end)].copy().sort_values("날짜")
-    if v.empty:
-        st.info("해당 기간에 일정이 없습니다.")
+    view = schedule[(schedule["날짜"] >= start) & (schedule["날짜"] < end)].copy().sort_values("날짜")
+
+    def _last_personal_summary(member_name: str):
+        """개인 세션의 직전 운동 기록 요약"""
+        past = sessions[(sessions["이름"] == member_name)].copy()
+        if past.empty:
+            return "—"
+        past = past.sort_values("날짜", ascending=False)
+        last = past.iloc[0]
+        # No Show 표기면 🫥
+        if str(last.get("사유", "")).lower().strip() == "no show" or str(last.get("특이사항", "")).strip().lower() == "no show":
+            return "🫥"
+        # 동작 → 추가동작 → 간단요약
+        if last.get("동작(리스트)", ""):
+            return last["동작(리스트)"]
+        if last.get("추가동작", ""):
+            return last["추가동작"]
+        # 없으면 레벨/기구(있을 때)로 요약
+        level = str(last.get("레벨", "") or "")
+        equip = str(last.get("기구", "") or "")
+        if level or equip:
+            return " · ".join([x for x in [level, equip] if x])
+        return "—"
+
+    if view.empty:
+        big_info("해당 기간에 일정이 없습니다.")
     else:
-        for _, r in v.iterrows():
-            time_html = pd.to_datetime(r["날짜"]).strftime("%m/%d %a %H:%M")
+        def card_html(r):
+            dt = pd.to_datetime(r["날짜"]).strftime("%m/%d %a %H:%M")
+            chip = tag(SITE_LABEL.get(r["지점"], r["지점"]), SITE_COLOR.get(r["지점"], "#eee"))
             name_html = f'<b style="font-size:16px">{r["이름"] if r["이름"] else "(그룹)"}</b>'
-            chip = tag(r["지점"], SITE_COLOR.get(r["지점"], "#eee"))
-            free = " · ✨" if r["온더하우스"] else ""
-            title = f'{time_html} · {chip} · {name_html}{free}'
-            sub   = f'{r["구분"]} · {r.get("레벨","")} · {r.get("기구","")}'
-            if r.get("특이사항",""):
-                sub += f' · 메모: {r["특이사항"]}'
-            if r["상태"]=="취소됨":
+            free = " · ✨" if r.get("온더하우스", False) else ""
+            title = f'{dt} · {chip} · {name_html}{free}'
+            # 상태 뱃지
+            status = str(r.get("상태", "예약됨"))
+            if status == "취소됨":
+                badge = '<span style="background:#ccc;color:#666;padding:2px 6px;border-radius:6px;text-decoration:line-through;">취소됨</span>'
                 title = f"<s>{title}</s>"
+            elif status == "No Show":
+                badge = '<span style="background:#ffe3e3;color:#d00;padding:2px 6px;border-radius:6px;">No Show</span>'
+            elif status == "완료":
+                badge = '<span style="background:#e0ffe7;color:#11772a;padding:2px 6px;border-radius:6px;">완료</span>'
+            else:
+                badge = '<span style="background:#e8f0ff;color:#1849a9;padding:2px 6px;border-radius:6px;">예약됨</span>'
 
-            colA,colB,colC,colD = st.columns([3,1,1,1])
+            # 개인: 지난 운동 표시 / 그룹: 간단 요약
+            if r["구분"] == "개인" and r["이름"]:
+                sub = f'지난 운동: { _last_personal_summary(r["이름"]) }'
+            else:
+                sub = f'그룹 정보: 인원 {r["인원"]}명'
+
+            if r.get("메모"):
+                sub += f' · 메모: {r["메모"]}'
+
+            return f"{title} {badge}", sub
+
+        for _, r in view.iterrows():
+            t, b = card_html(r)
+            colA, colB, colC, colD = st.columns([3, 1, 1, 1])
             with colA:
-                st.markdown(f"{title}<br><span style='color:#bbb'>{sub}</span><br><span>상태: <b>{r['상태']}</b></span>", unsafe_allow_html=True)
+                st.markdown(f"{t}<br><span style='color:#888'>{b}</span>", unsafe_allow_html=True)
 
-                # 개인: 지난 운동 요약(직전 세션 확인) — 직전 세션이 No Show면 🫥
-                if (r["구분"]=="개인") and r["이름"]:
-                    prev = sessions[
-                        (sessions["이름"]==r["이름"]) &
-                        (pd.to_datetime(sessions["날짜"]) < pd.to_datetime(r["날짜"]))
-                    ].sort_values("날짜", ascending=False).head(1)
-                    if not prev.empty:
-                        pr = prev.iloc[0]
-                        noshow_prev = (str(pr.get("사유","")).strip().lower()=="no show" or
-                                       str(pr.get("특이사항","")).strip().lower()=="no show")
-                        if noshow_prev:
-                            st.caption("지난 운동: 🫥")
-                        else:
-                            moves = str(pr.get("동작(리스트)","")).strip()
-                            extra = str(pr.get("추가동작","")).strip()
-                            summary = moves or extra or f'{pr.get("레벨","")} · {pr.get("기구","")}'.strip(" ·")
-                            st.caption(f"지난 운동: {summary}")
-                    else:
-                        st.caption("지난 운동: (기록 없음)")
-
-                # 그룹: 레벨·기구·인원 요약
-                if r["구분"]=="그룹":
-                    st.caption(f'그룹 정보: {r.get("레벨","")} · {r.get("기구","")} · {int(r.get("인원",1))}명')
-
+            # 버튼들 (key = id 기반, 충돌 방지)
+            rid = r["id"]
             with colB:
-                if st.button("출석", key=f"att_{r['id']}"):
-                    # 출석 → 세션 자동 생성(임시), 규칙 반영
-                    gross, net = calc_pay(r["지점"], r["구분"], int(r["인원"]), r.get("이름",""), members)
-                    if bool(r["온더하우스"]):
-                        gross = net = 0.0  # 0원
+                if st.button("출석", key=f"s_att_{rid}"):
+                    # 출석 → 세션 자동 생성 (온더하우스면 0원 & 차감 없음)
+                    gross, net = calc_pay(r["지점"], r["구분"], int(r["인원"]))
+                    if r.get("온더하우스", False):
+                        gross = net = 0.0
+
                     sess = pd.DataFrame([{
                         "id": ensure_id(sessions),
                         "날짜": r["날짜"],
@@ -526,70 +558,98 @@ if st.session_state["page"] == "schedule":
                         "구분": r["구분"],
                         "이름": r["이름"],
                         "인원": int(r["인원"]),
-                        "레벨": r["레벨"],
-                        "기구": r["기구"],
+                        "레벨": "",
+                        "기구": "",
                         "동작(리스트)": "",
                         "추가동작": "",
-                        "특이사항": r.get("특이사항",""),
+                        "특이사항": "",
                         "숙제": "",
-                        "메모": "",
+                        "메모": r.get("메모", ""),
                         "취소": False,
                         "사유": "",
                         "분": 50,
-                        "온더하우스": bool(r["온더하우스"]),
+                        "온더하우스": bool(r.get("온더하우스", False)),
                         "페이(총)": float(gross),
                         "페이(실수령)": float(net)
                     }])
                     sessions = pd.concat([sessions, sess], ignore_index=True)
                     save_sessions(sessions)
 
-                    # 횟수 차감 (개인 + ✨아닐 때)
-                    if (r["구분"]=="개인") and r["이름"] and (not r["온더하우스"]) and (r["이름"] in members["이름"].values):
-                        mi = members.index[members["이름"]==r["이름"]][0]
-                        remain = max(0, int(float(members.loc[mi,"남은횟수"] or 0)) - 1)
-                        members.loc[mi,"남은횟수"] = str(remain)
+                    # 차감: 개인 + 온더하우스 아님
+                    if (r["구분"] == "개인") and r["이름"] and (r["이름"] in members["이름"].values) and (not r.get("온더하우스", False)):
+                        idx = members.index[members["이름"] == r["이름"]][0]
+                        remain = max(0, int(float(members.loc[idx, "남은횟수"] or 0)) - 1)
+                        members.loc[idx, "남은횟수"] = str(remain)
                         save_members(members)
 
-                    schedule.loc[schedule["id"]==r["id"], "상태"] = "완료"
+                    schedule.loc[schedule["id"] == rid, "상태"] = "완료"
                     save_schedule(schedule)
                     st.experimental_rerun()
 
             with colC:
-                if st.button("취소", key=f"can_{r['id']}"):
-                    schedule.loc[schedule["id"]==r["id"], "상태"] = "취소됨"
+                if st.button("취소", key=f"s_can_{rid}"):
+                    schedule.loc[schedule["id"] == rid, "상태"] = "취소됨"
                     save_schedule(schedule)
                     st.experimental_rerun()
 
             with colD:
-                if st.button("No Show", key=f"nos_{r['id']}"):
-                    # 규칙: 세션 생성 안 함, 차감O & 페이O (단 ✨면 0원 & 차감X)
-                    if (r["구분"]=="개인") and r["이름"] and (not r["온더하우스"]) and (r["이름"] in members["이름"].values):
-                        mi = members.index[members["이름"]==r["이름"]][0]
-                        remain = max(0, int(float(members.loc[mi,"남은횟수"] or 0)) - 1)
-                        members.loc[mi,"남은횟수"] = str(remain)
-                        save_members(members)
+                if st.button("No Show", key=f"s_nos_{rid}"):
+                    # No Show → 세션 생성 없음, 단 차감/페이 처리 원하면 여기서 생성하도록 바꿀 수 있음
+                    # (요청사항: No Show는 세션 생성하지 않음)
+                    # 차감/페이는 반영해야 한다면 아래 블록 주석 해제
+                    gross, net = calc_pay(r["지점"], r["구분"], int(r["인원"]))
+                    if not r.get("온더하우스", False):
+                        # 개인 차감
+                        if (r["구분"] == "개인") and r["이름"] and (r["이름"] in members["이름"].values):
+                            idx = members.index[members["이름"] == r["이름"]][0]
+                            remain = max(0, int(float(members.loc[idx, "남은횟수"] or 0)) - 1)
+                            members.loc[idx, "남은횟수"] = str(remain)
+                            save_members(members)
+                        # 페이는 🍒 통계에서 집계할 수 있도록 세션 생성이 필요하다면
+                        # 아래 주석을 해제하세요 (No Show 세션으로)
+                        # sess = pd.DataFrame([{
+                        #     "id": ensure_id(sessions),
+                        #     "날짜": r["날짜"], "지점": r["지점"], "구분": r["구분"], "이름": r["이름"],
+                        #     "인원": int(r["인원"]), "레벨": "", "기구": "",
+                        #     "동작(리스트)": "", "추가동작": "",
+                        #     "특이사항": "No Show", "숙제": "", "메모": r.get("메모",""),
+                        #     "취소": False, "사유": "No Show", "분": 50,
+                        #     "온더하우스": False,
+                        #     "페이(총)": float(gross), "페이(실수령)": float(gross)
+                        # }])
+                        # sessions = pd.concat([sessions, sess], ignore_index=True)
+                        # save_sessions(sessions)
 
-                    # 스케줄의 상태만 No Show로
-                    schedule.loc[schedule["id"]==r["id"], "상태"] = "No Show"
+                    schedule.loc[schedule["id"] == rid, "상태"] = "No Show"
                     save_schedule(schedule)
                     st.experimental_rerun()
 
-    # ---- iCal 내보내기 ----
+    # --------------------------
+    # 📤 iCal(.ics) 내보내기
+    # --------------------------
     st.divider()
     st.subheader("📤 iCal(.ics) 내보내기")
-    exclude_cancel = st.checkbox("취소 제외", value=True)
-    export_df = v.copy()
-    if not export_df.empty and exclude_cancel:
-        export_df = export_df[export_df["상태"]!="취소됨"]
+
+    exclude_cancel = st.checkbox("취소된 일정 제외", value=True, key="ics_excl_cancel")
+
+    export_df = view.copy()
+    if not export_df.empty:
+        if "취소" in export_df.columns:
+            # (예전 스키마 호환) 취소 컬럼이 있다면 반영
+            if exclude_cancel:
+                export_df = export_df[~export_df["취소"].astype(str).str.lower().isin(["true", "1", "y", "yes"])]
+        elif "상태" in export_df.columns and exclude_cancel:
+            export_df = export_df[export_df["상태"] != "취소됨"]
+
     if export_df.empty:
         st.caption("내보낼 일정이 없습니다.")
     else:
-        # iCal에 종료시간이 필요하므로 분 컬럼 보강
-        export_df = export_df.copy()
-        export_df["분"] = 50
         ics_bytes = build_ics_from_df(export_df)
-        fname = f"schedule_{view_mode}_{base.strftime('%Y%m%d')}.ics"
-        st.download_button("⬇️ iCal 파일 다운로드", data=ics_bytes, file_name=fname, mime="text/calendar", use_container_width=True)
+        filename = f"schedule_{view_mode}_{base.strftime('%Y%m%d')}.ics"
+        st.download_button("⬇️ iCal 파일 다운로드",
+                           data=ics_bytes, file_name=filename, mime="text/calendar",
+                           use_container_width=True, key="ics_dl_btn")
+        st.caption("받은 .ics 파일을 아이폰/구글 캘린더에 추가하면 일정이 달력에 들어가요.")
 
 # ======================================
 # 페이지: 세션
@@ -858,6 +918,7 @@ elif st.session_state["page"] == "cherry":
             sch_cnt  = pivot_counts(sch_all[["YM","구분","지점"]], "스케줄(전체)")
             out = pd.concat([sess_cnt, sch_cnt], ignore_index=True).sort_values(["YM","구분","출처"], ascending=[False,True,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
