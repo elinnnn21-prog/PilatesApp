@@ -300,51 +300,43 @@ schedule = load_schedule()
 ex_db    = load_ex_db()
 
 # -----------------------------
-# 사이드바 메뉴 (중복 제거: 버튼형)
-# -----------------------------
+# ----------------- 사이드바: 깔끔한 단일 메뉴 -----------------
+# CSS (불릿 X, 버튼 스타일 깔끔)
 st.markdown("""
 <style>
-/* 사이드바 버튼을 텍스트 메뉴처럼 */
-div[data-testid="stSidebar"] button[kind="secondary"]{
-  width:100%;
-  background:transparent;
-  border:none;
-  box-shadow:none;
-  text-align:left;
-  padding:8px 4px;
-  font-size:18px;
-}
-div[data-testid="stSidebar"] button[kind="secondary"]:hover{
-  font-weight:700;
-  color:#FF4B4B;
-}
-.active-menu{
-  font-weight:800 !important;
-}
+.sidebar-menu-item { display:block; padding:6px 8px; font-size:19px; }
+.sidebar-menu-active { font-weight:800; color:#ff4b4b; }
+.sidebar-spacer { height:6px; }
 </style>
 """, unsafe_allow_html=True)
 
+# 첫 페이지 기본값
 if "page" not in st.session_state:
-    st.session_state.page = "schedule"   # 첫 화면: 스케줄
+    st.session_state.page = "schedule"  # 처음엔 스케줄
 
-def menu_btn(label, key, emoji_only=False):
-    show_text = label if not emoji_only else label.split()[0]
-    clicked = st.sidebar.button(show_text, key=f"menu_{key}")
-    # active 표시
-    st.sidebar.markdown(
-        f'<div class="{"active-menu" if st.session_state.page==key else ""}">{show_text}</div>',
-        unsafe_allow_html=True
-    )
-    if clicked:
-        st.session_state.page = key
+st.sidebar.markdown("## 메뉴")
 
-st.sidebar.markdown("### 메뉴")
-menu_btn("📅 스케줄", "schedule")
-menu_btn("✍️ 세션",   "session")
-menu_btn("👥 멤버",    "member")
-menu_btn("📋 리포트", "report")
-menu_btn("🍒",        "cherry", emoji_only=True)
-st.sidebar.divider()
+def menu_item(label: str, key: str, emoji_only: bool=False):
+    """활성일 땐 텍스트(굵게/빨강)만, 비활성일 땐 버튼 1개만."""
+    show = label if not emoji_only else label.split()[0]
+    active = (st.session_state.page == key)
+    if active:
+        st.sidebar.markdown(
+            f"<div class='sidebar-menu-item sidebar-menu-active'>{show}</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        if st.sidebar.button(show, key=f"menu_{key}"):
+            st.session_state.page = key
+    st.sidebar.markdown("<div class='sidebar-spacer'></div>", unsafe_allow_html=True)
+
+# 실제 메뉴(🍒만 이모지 단독)
+menu_item("📅 스케줄", "schedule")
+menu_item("✍️ 세션",   "session")
+menu_item("👥 멤버",    "member")
+menu_item("📋 리포트",  "report")
+menu_item("🍒",        "cherry", emoji_only=True)
+# ------------------------------------------------------------
 
 # =========================================================
 # 📅 스케줄 (간소화 + 자동 지점)
@@ -780,5 +772,6 @@ elif st.session_state.page == "cherry":
             detail = df.sort_values("날짜", ascending=False).copy()
             detail["날짜"] = pd.to_datetime(detail["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(detail, use_container_width=True, hide_index=True)
+
 
 
