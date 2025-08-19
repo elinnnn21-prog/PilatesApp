@@ -575,11 +575,17 @@ elif st.session_state.page == "member":
                 default_phone = members.loc[members["이름"] == sel, "연락처"].iloc[0]
             phone = st.text_input("연락처", value=default_phone, placeholder="010-0000-0000")
 
-            # 중복 전화번호 경고(본인 제외)
-            if phone.strip():
-                dup = members[(members["연락처"] == phone.strip()) & (members["이름"] != (name.strip() if not is_new else ""))]
-                if not dup.empty:
-                    st.warning(f"⚠️ 동일한 전화번호가 이미 존재합니다: {', '.join(dup['이름'].tolist())}")
+            # 연락처 중복 경고 (빈칸이면 검사 안 함, 숫자만 비교)
+if phone.strip():
+    phone_norm = _norm_phone(phone)
+    # members에 저장된 연락처도 숫자만 추출해서 비교
+    exists = members.copy()
+    exists["_p"] = exists["연락처"].fillna("").apply(_norm_phone)
+    # 신규일 땐 현재 name이 없음, 기존 수정일 땐 본인(name)은 제외
+    current_name = "" if sel == "(새 회원)" else name.strip()
+    dup = exists[(exists["_p"] == phone_norm) & (exists["이름"] != current_name)]
+    if not dup.empty and phone_norm != "":   # 숫자가 하나라도 있을 때만
+        st.warning(f"⚠️ 동일한 전화번호가 이미 존재합니다: {', '.join(dup['이름'].tolist())}")
 
         # ---------------- 우측: 지점/등록일/횟수 ----------------
         with right:
@@ -845,6 +851,7 @@ elif st.session_state.page == "cherry":
             v = df.sort_values("날짜", ascending=False)
             v["날짜"] = pd.to_datetime(v["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(v, use_container_width=True, hide_index=True)
+
 
 
 
