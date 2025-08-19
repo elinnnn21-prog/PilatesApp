@@ -661,7 +661,7 @@ elif st.session_state["page"] == "session":
     add_free = st.text_input("추가 동작(콤마로 구분)", value="")
     special   = st.text_input("특이사항", value="")
     homework  = st.text_input("숙제", value="")
-    memo      = st.text_area("메모", height=60)
+    
 
     col_btn = st.columns(2)
     with col_btn[0]:
@@ -930,6 +930,7 @@ elif st.session_state["page"] == "cherry":
             sch_cnt  = pivot_counts(sch_all[["YM","구분","지점"]], "스케줄(전체)")
             out = pd.concat([sess_cnt, sch_cnt], ignore_index=True).sort_values(["YM","구분","출처"], ascending=[False,True,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
