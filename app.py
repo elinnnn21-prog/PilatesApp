@@ -562,46 +562,58 @@ elif st.session_state.page == "session":
             )
 
         # ── 개인/그룹 분기 입력 ─────────────────────────────────────
-        if session_type == "개인":
-            # (1) 기구는 여러 개 선택 가능
-            equip_choices = ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"]
-            equipments = st.multiselect("기구(복수 선택 가능)", equip_choices, key="sess_equips")
+      if session_type == "개인":
+    # (A) 기구 여러 개 선택
+    equip_choices = ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"]
+    equipments = st.multiselect("기구(복수 선택 가능)", equip_choices, key="sess_equips")
 
-            # (2) 선택한 기구에 해당하는 동작만 모아 보여주기
-            move_pool = []
-            # Barrel/Spine 이라고 저장했지만 ex_db 키가 "Spine corrector/Barrel" 등일 수 있어 매칭 폭 넓힘
-            # 간단 매핑 규칙
-            key_map = {
-                "Mat": ["Mat","Mat(Basic)","Mat(Intermediate/Advanced)"],
-                "Reformer": ["Reformer"],
-                "Cadillac": ["Cadillac"],
-                "Wunda chair": ["Wunda chair","Wunda Chair"],
-                "Barrel/Spine": ["Spine corrector/Barrel","Small Barrel","Large barrel","Ladder Barrel","Barrel","Spine Corrector","Small barrel","Large Barrel","Ladder barrel"],
-                "기타": ["기타","Magic Circle","Arm Chair","Ped-O-Pul","High/Electric Chair","Foot Corrector","Toe Corrector","Neck Stretcher"]
-            }
+    # (B) 선택 기구에 해당하는 동작만 모으기
+    ex_db = load_ex_db()
+    key_map = {
+        "Mat": ["Mat","Mat(Basic)","Mat(Intermediate/Advanced)"],
+        "Reformer": ["Reformer"],
+        "Cadillac": ["Cadillac"],
+        "Wunda chair": ["Wunda chair","Wunda Chair"],
+        "Barrel/Spine": ["Spine corrector/Barrel","Small Barrel","Large barrel","Ladder Barrel",
+                         "Barrel","Spine Corrector","Small barrel","Large Barrel","Ladder barrel"],
+        "기타": ["기타","Magic Circle","Arm Chair","Ped-O-Pul","High/Electric Chair",
+               "Foot Corrector","Toe Corrector","Neck Stretcher"]
+    }
 
-            for eq in equipments:
-                for k in key_map.get(eq, []):
-                    if k in ex_db:
-                        move_pool.extend(list(ex_db[k]))
+    move_pool = []
+    for eq in equipments:
+        for k in key_map.get(eq, []):
+            if k in ex_db:
+                move_pool.extend(list(ex_db[k]))
+    move_pool = set(move_pool)  # 중복 제거
 
-            # 중복 제거 + 정렬
-            move_pool = sorted({m for m in move_pool})
+    # (C) 기구를 바꿔도 기존 선택이 유지되게:
+    #     보여줄 옵션 = 현재 기구 동작 ∪ 이미 선택해 둔 동작
+    options = sorted(move_pool.union(set(st.session_state["moves_keep"])))
 
-            chosen_moves = st.multiselect("운동 동작(복수)", options=move_pool, key="sess_moves")
-            add_free = st.text_input("추가 동작(콤마 , 로 구분)", placeholder="예: Side bends, Mermaid", key="sess_extra")
+    chosen_moves = st.multiselect(
+        "운동 동작(복수)",
+        options=options,
+        default=st.session_state["moves_keep"],   # 유지!
+        key="sess_moves"
+    )
 
-            memo = st.text_area("특이사항/메모(선택)", height=70, key="sess_memo")
-            onth = st.checkbox("✨ On the house (무료)", key="sess_onth")
+    # 선택 변경 사항을 상태에 반영
+    st.session_state["moves_keep"] = chosen_moves
 
-        else:
-            # 그룹: 동작/추가동작/특이사항 입력 없이 출석만 기록
-            st.info("그룹 세션은 동작 기록 없이 출석만 처리됩니다.")
-            equipments = st.multiselect("기구(복수 선택 가능)", ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"], key="sess_equips_grp")
-            chosen_moves = []
-            add_free = ""
-            memo = ""
-            onth = st.checkbox("✨ On the house (무료)", key="sess_onth_grp")
+    # (D) 추가 동작/메모/무료
+    add_free = st.text_input("추가 동작(콤마 , 로 구분)", placeholder="예: Side bends, Mermaid", key="sess_extra")
+    memo = st.text_area("특이사항/메모(선택)", height=70, key="sess_memo")
+   
+else:
+    # 그룹은 동작/추가동작/특이사항 입력 없음
+    st.info("그룹 세션은 동작 기록 없이 출석만 처리됩니다.")
+    equipments = st.multiselect("기구(복수 선택 가능)", ["Reformer","Cadillac","Wunda chair","Barrel/Spine","Mat","기타"], key="sess_equips_grp")
+    chosen_moves = []
+    add_free = ""
+    memo = ""
+    onth = st.checkbox("✨ On the house (무료)", key="sess_onth_grp")
+
 
         # ── 저장 버튼 ─────────────────────────────────────────────
         if st.button("세션 저장", use_container_width=True, key="sess_save"):
@@ -816,6 +828,7 @@ elif st.session_state.page == "cherry":
             detail = df.sort_values("날짜", ascending=False).copy()
             detail["날짜"] = pd.to_datetime(detail["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(detail, use_container_width=True, hide_index=True)
+
 
 
 
