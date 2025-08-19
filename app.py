@@ -692,6 +692,46 @@ elif st.session_state.page == "member":
                 hide_index=True
             )
 
+    # ---------- 데이터 백업/복구 ----------
+    with st.expander("💾 데이터 백업/복구", expanded=False):
+        st.caption("CSV는 앱 재배포 시 초기화될 수 있어요. 주기적으로 백업하세요!")
+
+        colb = st.columns(2)
+        with colb[0]:
+            st.download_button(
+                "📥 members.csv 내보내기",
+                data=load_members().to_csv(index=False, encoding="utf-8-sig"),
+                file_name="members.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            st.download_button(
+                "📥 sessions.csv 내보내기",
+                data=load_sessions().assign(날짜=lambda d: pd.to_datetime(d["날짜"]).dt.strftime("%Y-%m-%d %H:%M:%S")
+                                if not load_sessions().empty else d["날짜"]).to_csv(index=False, encoding="utf-8-sig"),
+                file_name="sessions.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+        with colb[1]:
+            up_m = st.file_uploader("members.csv 불러오기", type=["csv"])
+            up_s = st.file_uploader("sessions.csv 불러오기", type=["csv"])
+            if st.button("📤 업로드 적용", use_container_width=True):
+                try:
+                    if up_m is not None:
+                        dfm = pd.read_csv(up_m, dtype=str, encoding="utf-8-sig").fillna("")
+                        save_members(dfm)
+                    if up_s is not None:
+                        dfs = pd.read_csv(up_s, dtype=str, encoding="utf-8-sig").fillna("")
+                        # 날짜 고정
+                        if not dfs.empty and "날짜" in dfs.columns:
+                            dfs["날짜"] = pd.to_datetime(dfs["날짜"])
+                        save_sessions(dfs)
+                    st.success("백업/복구 적용 완료!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"업로드 처리 중 오류: {e}")
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -799,6 +839,7 @@ elif st.session_state.page == "cherry":
             v = df.sort_values("날짜", ascending=False)
             v["날짜"] = pd.to_datetime(v["날짜"]).dt.strftime("%Y-%m-%d %H:%M")
             st.dataframe(v, use_container_width=True, hide_index=True)
+
 
 
 
