@@ -26,15 +26,30 @@ creds_dict = _raw if isinstance(_raw, dict) else json.loads(_raw)
 creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 
 client = gspread.authorize(creds)
-SHEET_ID = st.secrets["gcp_service"]["SHEET_ID"]   # <-- secrets.toml에 넣은 값 사용
-sheet = client.open_by_key(SHEET_ID).sheet1
+# ✅ 시트 ID
+SHEET_ID = st.secrets["gcp_service"]["SHEET_ID"]
 
-# 테스트: 시트 -> DataFrame
-df = pd.DataFrame(sheet.get_all_records())
+# ✅ 탭별 시트 가져오기
+members_sheet = client.open_by_key(SHEET_ID).worksheet("members")
+sessions_sheet = client.open_by_key(SHEET_ID).worksheet("sessions")
+schedule_sheet = client.open_by_key(SHEET_ID).worksheet("schedule")
 
+# ✅ DataFrame 변환
+df_members = pd.DataFrame(members_sheet.get_all_records())
+df_sessions = pd.DataFrame(sessions_sheet.get_all_records())
+df_schedule = pd.DataFrame(schedule_sheet.get_all_records())
+
+# -------- Streamlit 화면 --------
 st.title("📊 구글 시트 연결 테스트")
-st.write("구글시트에서 불러온 데이터:")
-st.dataframe(df)
+
+st.subheader("👥 Members")
+st.dataframe(df_members)
+
+st.subheader("🗓️ Sessions")
+st.dataframe(df_sessions)
+
+st.subheader("📅 Schedule")
+st.dataframe(df_schedule)
 # ==========================
 # Constants & paths
 # ==========================
@@ -1765,6 +1780,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
