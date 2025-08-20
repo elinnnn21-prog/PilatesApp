@@ -6,6 +6,14 @@ from typing import Dict, List
 import pandas as pd
 import streamlit as st
 
+import streamlit as st
+
+st.set_page_config(
+    page_title="Pilates Manager",   # 원하는 페이지 제목
+    page_icon="icon.png",           # 방금 올린 아이콘 파일 경로
+    layout="wide",                  # wide or centered
+    initial_sidebar_state="expanded"
+)
 # ==========================
 # Google Sheets 연결
 # ==========================
@@ -37,9 +45,6 @@ DATA_DIR = Path(".")
 FAVICON = DATA_DIR / "favicon.png"
 if FAVICON.exists():
     st.set_page_config(page_title="Pilates Manager", page_icon=str(FAVICON), layout="wide")
-else:
-    st.set_page_config(page_title="Pilates Manager", page_icon="✨", layout="wide")
-
 # ==========================
 # Constants & paths
 # ==========================
@@ -1781,6 +1786,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
