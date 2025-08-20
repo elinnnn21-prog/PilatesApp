@@ -10,31 +10,21 @@ from google.oauth2.service_account import Credentials
 
 # ==========================
 # 🔑 구글 시트 연결 설정
-# ==========================
-
-# 서비스 계정 키 파일 경로
-SERVICE_ACCOUNT_FILE = "pilatesmanager-gcp.json"
-
-# 접근 권한 (Google Sheets)
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-
-# 인증
+# ===== Google Sheets Auth (Secrets) =====
+import gspread
+from google.oauth2.service_account import Credentials
 import json
 
-_raw_creds = st.secrets["gcp_service"]["credentials"]   # Secrets에 저장한 멀티라인 문자열
-creds_dict = json.loads(_raw_creds)                     # dict 변환
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+_raw = st.secrets["gcp_service"]["credentials"].strip()
+creds_dict = json.loads(_raw)
 creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+client = gspread.authorize(creds)
 
-# 네 구글 시트 ID (URL에서 가져오기)
-# 예: https://docs.google.com/spreadsheets/d/📌여기부분📌/edit#gid=0
-SHEET_ID = "1GgGZOhUgBqn_atzguV1jj0Svt2pxBWYVCmAGG4ib9Roc"
-
-# 시트 열기
-sheet = client.open_by_key(SHEET_ID).sheet1
-
-# 데이터 불러오기 (Google Sheet → Pandas DataFrame)
-data = sheet.get_all_records()
-df = pd.DataFrame(data)
+SHEET_ID = st.secrets["1GgGZOhUgBqn_atzguV1jj0Svt2pxBWYVCmAGG4ib9Roc"]
+sheet = client.open_by_key(1GgGZOhUgBqn_atzguV1jj0Svt2pxBWYVCmAGG4ib9Roc).sheet1
+# =======================================
 
 # ==========================
 # ✅ Streamlit 테스트
@@ -1793,6 +1783,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
