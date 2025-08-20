@@ -3,28 +3,26 @@ from pathlib import Path
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Dict, List
 
-import pandas as pd   # ✅ 판다스 불러오기
+import pandas as pd
 import streamlit as st
-import gspread        # ✅ 구글 시트 라이브러리
-from google.oauth2.service_account import Credentials
 
 # ==========================
-# 🔑 구글 시트 연결 설정
-# ===== Google Sheets Auth (Secrets) =====
+# Google Sheets 연결
+# ==========================
 import gspread
 from google.oauth2.service_account import Credentials
-import json
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
+# Streamlit secrets에서 서비스 계정 불러오기
 _raw = st.secrets["gcp_service"]["credentials"].strip()
 creds_dict = json.loads(_raw)
 creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 client = gspread.authorize(creds)
 
-SHEET_ID = st.secrets["1GgGZOhUgBqn_atzguV1jj0Svt2pxBWYVCmAGG4ib9Roc"]
-sheet = client.open_by_key(1GgGZOhUgBqn_atzguV1jj0Svt2pxBWYVCmAGG4ib9Roc).sheet1
-# =======================================
+# 시트 연결
+SHEET_ID = st.secrets["gcp_service"]["SHEET_ID"]
+sheet = client.open_by_key(SHEET_ID).sheet1
 
 # ==========================
 # ✅ Streamlit 테스트
@@ -1783,6 +1781,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
