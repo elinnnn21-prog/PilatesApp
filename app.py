@@ -8,6 +8,29 @@ import pandas as pd
 import streamlit as st
 
 # ==========================
+# Google Sheets 연결
+# ==========================
+import gspread
+from google.oauth2.service_account import Credentials
+
+# 서비스 계정 키 파일 경로
+SERVICE_ACCOUNT_FILE = "pilatesmanager-gcp.json"
+
+# 접근 권한 (Google Sheets)
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+# 인증
+creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+client = gspread.authorize(creds)
+
+# 네 구글시트 ID (URL에서 따오기)
+# 예: https://docs.google.com/spreadsheets/d/📌이부분📌/edit#gid=0
+SHEET_ID = "1GgGZOhUqBn_atzguVljj0svt2pxBWYVCmAGG4ib9Roc"
+
+# 시트 열기
+sheet = client.open_by_key(SHEET_ID).sheet1
+
+# ==========================
 # Page config & favicon
 # ==========================
 DATA_DIR = Path(".")
@@ -1758,4 +1781,5 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
