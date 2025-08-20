@@ -21,9 +21,7 @@ st.set_page_config(
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # secrets에 credentials가 문자열/딕트 어떤 형태로 와도 동작하게 처리
-_raw = st.secrets["gcp_service"]["credentials"]
 creds_dict = _raw if isinstance(_raw, dict) else json.loads(_raw)
-creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 
 client = gspread.authorize(creds)
 # ✅ 시트 ID
@@ -1780,6 +1778,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
