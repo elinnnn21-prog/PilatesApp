@@ -300,7 +300,7 @@ def build_ics_from_df(df: pd.DataFrame, default_minutes: int = 50) -> bytes:
             f"DTEND:{_fmt_ics_dt(end)}",
             f"SUMMARY:{title}",
             f"LOCATION:{loc}",
-            f"DESCRIPTION:{memo.replace('\\n','\\\\n')}",
+            f"DESCRIPTION:{memo.replace('\n','\\n')}",
             "END:VEVENT"
         ]
 
@@ -595,25 +595,14 @@ if st.session_state["page"] == "schedule":
         filename = f"schedule_{view_mode}_{base.strftime('%Y%m%d')}.ics"
         st.download_button("⬇️ iCal 파일 다운로드", data=ics_bytes, file_name=filename, mime="text/calendar", use_container_width=True, key="ics_btn")
 
-# ==========================
-# Session Page
-# ==========================
-# app.py
-import os, json, io, zipfile
-from pathlib import Path
-from datetime import datetime, date, time, timedelta, timezone
-from typing import Dict, List
-
-import pandas as pd
-import streamlit as st
 
 # ==========================
 # Page config & favicon
 # ==========================
 DATA_DIR = Path(".")
-FAVICON = DATA_DIR / "favicon.png"
-if FAVICON.exists():
-    st.set_page_config(page_title="Pilates Manager", page_icon=str(FAVICON), layout="wide")
+FAVICON = DATA_DIR / "icon.png"
+if ICON.exists():
+    st.set_page_config(page_title="Pilates Manager", page_icon=str(ICON), layout="wide")
 else:
     st.set_page_config(page_title="Pilates Manager", page_icon="✨", layout="wide")
 
@@ -1776,6 +1765,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
