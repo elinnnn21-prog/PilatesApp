@@ -19,8 +19,11 @@ SERVICE_ACCOUNT_FILE = "pilatesmanager-gcp.json"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # 인증
-creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-client = gspread.authorize(creds)
+import json
+
+_raw_creds = st.secrets["gcp_service"]["credentials"]   # Secrets에 저장한 멀티라인 문자열
+creds_dict = json.loads(_raw_creds)                     # dict 변환
+creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 
 # 네 구글 시트 ID (URL에서 가져오기)
 # 예: https://docs.google.com/spreadsheets/d/📌여기부분📌/edit#gid=0
@@ -1790,6 +1793,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
