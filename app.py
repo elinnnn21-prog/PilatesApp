@@ -1,17 +1,16 @@
-# app.py
 import os, json, io, zipfile
 from pathlib import Path
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Dict, List
 
-import pandas as pd
+import pandas as pd   # ✅ 판다스 불러오기
 import streamlit as st
+import gspread        # ✅ 구글 시트 라이브러리
+from google.oauth2.service_account import Credentials
 
 # ==========================
-# Google Sheets 연결
+# 🔑 구글 시트 연결 설정
 # ==========================
-import gspread
-from google.oauth2.service_account import Credentials
 
 # 서비스 계정 키 파일 경로
 SERVICE_ACCOUNT_FILE = "pilatesmanager-gcp.json"
@@ -23,16 +22,23 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 client = gspread.authorize(creds)
 
-# 네 구글시트 ID (URL에서 따오기)
-# 예: https://docs.google.com/spreadsheets/d/📌이부분📌/edit#gid=0
-SHEET_ID = "1GgGZOhUqBn_atzguVljj0svt2pxBWYVCmAGG4ib9Roc"
+# 네 구글 시트 ID (URL에서 가져오기)
+# 예: https://docs.google.com/spreadsheets/d/📌여기부분📌/edit#gid=0
+SHEET_ID = "1GgGZOhUgBqn_atzguV1jj0Svt2pxBWYVCmAGG4ib9Roc"
 
 # 시트 열기
 sheet = client.open_by_key(SHEET_ID).sheet1
 
+# 데이터 불러오기 (Google Sheet → Pandas DataFrame)
 data = sheet.get_all_records()
 df = pd.DataFrame(data)
 
+# ==========================
+# ✅ Streamlit 테스트
+# ==========================
+st.title("📊 구글 시트 연결 테스트")
+st.write("구글시트에서 불러온 데이터:")
+st.dataframe(df)
 # ==========================
 # Page config & favicon
 # ==========================
@@ -1784,6 +1790,7 @@ elif st.session_state["page"] == "cherry":
             sch = schedule.copy(); sch["YM"] = pd.to_datetime(sch["날짜"]).dt.strftime("%Y-%m")
             out = pd.concat([piv_counts(ss), piv_counts(sch)], ignore_index=True).sort_values(["YM","구분"], ascending=[False,True])
             st.dataframe(out, use_container_width=True, hide_index=True)
+
 
 
 
